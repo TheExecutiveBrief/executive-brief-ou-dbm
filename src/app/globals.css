@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-playfair: 'Playfair Display', Georgia, serif;
+  --font-newsreader: 'Newsreader', Charter, Georgia, serif;
+  --font-plus-jakarta: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --font-jetbrains-mono: 'JetBrains Mono', monospace;
+  --paper-bg: #FAF7F2;
+  --paper-ivory: #FCFAF6;
+  --ink-primary: #181614;
+  --border-editorial: #E4DDD0;
+  --crimson-heritage: #8B1E2D;
+}
+
+@layer base {
+  html {
+    background-color: var(--paper-bg);
+    color: var(--ink-primary);
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--paper-bg);
+    color: var(--ink-primary);
+    min-height: 100vh;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    background-color: #F8D7DA;
+    color: #5A0E18;
+  }
+}
+
+/* Custom Editorial Micro-Styling */
+.editorial-double-rule {
+  border-top: 1px solid var(--border-editorial);
+  border-bottom: 2px solid var(--ink-primary);
+  height: 5px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.editorial-hairline-b {
+  border-bottom: 1px solid var(--border-editorial);
+}
+
+.editorial-hairline-t {
+  border-top: 1px solid var(--border-editorial);
+}
+
+.editorial-hairline-r {
+  border-right: 1px solid var(--border-editorial);
+}
+
+.editorial-hairline-l {
+  border-left: 1px solid var(--border-editorial);
+}
+
+.editorial-dropcap::first-letter {
+  float: left;
+  font-family: var(--font-playfair);
+  font-size: 3.75rem;
+  line-height: 0.85;
+  padding-top: 4px;
+  padding-right: 10px;
+  padding-bottom: 2px;
+  color: var(--crimson-heritage);
+  font-weight: 700;
+}
+
+/* Subtle print paper texture */
+.paper-texture {
+  background-color: #FAF7F2;
+  background-image: radial-gradient(rgba(24, 22, 20, 0.03) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F5F2EB;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D8D0C2;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B6AC9C;
+}
