@@ -24,6 +24,21 @@ export interface Author {
   bio?: string;
 }
 
+export interface ArticleSection {
+  id?: string;
+  heading?: string;
+  paragraphs: string[];
+  bulletPoints?: string[];
+  pullQuote?: {
+    quote: string;
+    attribution?: string;
+  };
+  callout?: {
+    title: string;
+    content: string;
+  };
+}
+
 export interface Article {
   id: string;
   slug: string;
@@ -48,6 +63,7 @@ export interface Article {
     change?: string;
   }[];
   content?: string[];
+  bodySections?: ArticleSection[];
 }
 
 export interface MarketIndicator {

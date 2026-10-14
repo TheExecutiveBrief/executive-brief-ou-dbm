@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { allArticles } from "@/data/mockArticles";
 import { Article } from "@/lib/types";
 import { Search, X, BookOpen, Clock, ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { getArticleUrl } from "@/lib/routes";
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -100,36 +101,44 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               <p className="text-xs text-ink-400 mt-1">Try searching for broader terms like &ldquo;Management&rdquo; or &ldquo;Hyderabad&rdquo;</p>
             </div>
           ) : (
-            results.map((article) => (
-              <div key={article.id} className="py-3.5 first:pt-0 last:pb-0 group">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-crimson">
-                    {article.category.name}
-                  </span>
-                  <span className="text-ink-400 text-xs">·</span>
-                  <span className="font-mono text-[10px] text-ink-500 flex items-center gap-1">
-                    <Clock className="w-2.5 h-2.5" />
-                    {article.readingTime}
-                  </span>
+            results.map((article) => {
+              const url = getArticleUrl(article.slug);
+              return (
+                <div key={article.id} className="py-3.5 first:pt-0 last:pb-0 group">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-crimson">
+                      {article.category.name}
+                    </span>
+                    <span className="text-ink-400 text-xs">·</span>
+                    <span className="font-mono text-[10px] text-ink-500 flex items-center gap-1">
+                      <Clock className="w-2.5 h-2.5" />
+                      {article.readingTime}
+                    </span>
+                  </div>
+                  <Link
+                    href={url}
+                    onClick={onClose}
+                    className="font-serif text-base font-semibold text-ink-900 group-hover:text-crimson transition-colors block leading-snug"
+                  >
+                    {article.title}
+                  </Link>
+                  <p className="text-xs font-sans text-ink-600 line-clamp-2 mt-1">
+                    {article.excerpt}
+                  </p>
+                  <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-ink-500">
+                    <span>By {article.author.name}</span>
+                    <Link
+                      href={url}
+                      onClick={onClose}
+                      className="group-hover:translate-x-1 transition-transform inline-flex items-center text-crimson font-medium"
+                    >
+                      <span>Read article</span>
+                      <ArrowRight className="w-3 h-3 ml-1" />
+                    </Link>
+                  </div>
                 </div>
-                <a
-                  href={`#${article.slug}`}
-                  onClick={onClose}
-                  className="font-serif text-base font-semibold text-ink-900 group-hover:text-crimson transition-colors block leading-snug"
-                >
-                  {article.title}
-                </a>
-                <p className="text-xs font-sans text-ink-600 line-clamp-2 mt-1">
-                  {article.excerpt}
-                </p>
-                <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-ink-500">
-                  <span>By {article.author.name}</span>
-                  <span className="group-hover:translate-x-1 transition-transform inline-flex items-center text-crimson font-medium">
-                    Read article <ArrowRight className="w-3 h-3 ml-1" />
-                  </span>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 

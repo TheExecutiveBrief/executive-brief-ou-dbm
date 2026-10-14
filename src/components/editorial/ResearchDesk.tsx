@@ -1,13 +1,15 @@
 import React from "react";
+import Link from "next/link";
 import SectionHeader from "@/components/editorial/SectionHeader";
-import ArticleCard from "@/components/editorial/ArticleCard";
 import { researchArticles, categories } from "@/data/mockArticles";
-import { FileText, Download, BookmarkCheck, ArrowUpRight } from "lucide-react";
+import { FileText, ArrowUpRight } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { getArticleUrl } from "@/lib/routes";
 
 export default function ResearchDesk() {
   const spotlightPaper = researchArticles[0];
   const otherPapers = researchArticles.slice(1);
+  const spotlightUrl = getArticleUrl(spotlightPaper.slug);
 
   return (
     <section id="research-desk" className="w-full pb-10">
@@ -15,7 +17,7 @@ export default function ResearchDesk() {
         deskNumber={categories.research.deskNumber}
         title={categories.research.name}
         description={categories.research.description}
-        href="#research-archive"
+        href="#research-desk"
         accentColor="forest"
       />
 
@@ -32,7 +34,7 @@ export default function ResearchDesk() {
           </div>
 
           <h3 className="font-serif text-2xl sm:text-3xl font-bold text-ink-950 mb-3 leading-tight hover:text-crimson transition-colors">
-            <a href={`#${spotlightPaper.slug}`}>{spotlightPaper.title}</a>
+            <Link href={spotlightUrl}>{spotlightPaper.title}</Link>
           </h3>
 
           <p className="font-editorial italic text-base text-ink-700 mb-5 leading-relaxed">
@@ -59,14 +61,14 @@ export default function ResearchDesk() {
               </p>
             </div>
 
-            <a
-              href={`#${spotlightPaper.slug}`}
+            <Link
+              href={spotlightUrl}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-forest text-paper-ivory text-xs font-mono font-medium hover:bg-forest-900 transition-colors rounded"
             >
               <FileText className="w-3.5 h-3.5" />
               <span>Full Working Paper</span>
               <ArrowUpRight className="w-3 h-3" />
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -80,34 +82,41 @@ export default function ResearchDesk() {
           </div>
 
           <div className="divide-y divide-editorial-border/80">
-            {otherPapers.map((article) => (
-              <div key={article.id} className="py-5 first:pt-0 last:pb-0 group">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-forest bg-forest-light px-2 py-0.5 rounded">
-                    Working Paper
-                  </span>
-                  <span className="text-ink-400 text-xs">·</span>
-                  <span className="font-mono text-[11px] text-ink-500">
-                    {formatDate(article.publishedAt)}
-                  </span>
+            {otherPapers.map((article) => {
+              const url = getArticleUrl(article.slug);
+              return (
+                <div key={article.id} className="py-5 first:pt-0 last:pb-0 group">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-forest bg-forest-light px-2 py-0.5 rounded">
+                      Working Paper
+                    </span>
+                    <span className="text-ink-400 text-xs">·</span>
+                    <span className="font-mono text-[11px] text-ink-500">
+                      {formatDate(article.publishedAt)}
+                    </span>
+                  </div>
+
+                  <h5 className="font-serif text-lg font-bold text-ink-950 group-hover:text-crimson transition-colors leading-snug mb-2">
+                    <Link href={url}>{article.title}</Link>
+                  </h5>
+
+                  <p className="font-sans text-xs text-ink-600 line-clamp-2 leading-relaxed mb-3">
+                    {article.excerpt}
+                  </p>
+
+                  <div className="flex items-center justify-between text-xs font-mono text-ink-500">
+                    <span>Lead Investigator: {article.author.name}</span>
+                    <Link
+                      href={url}
+                      className="text-forest group-hover:translate-x-1 transition-transform inline-flex items-center font-medium"
+                    >
+                      <span>View Paper</span>
+                      <ArrowUpRight className="w-3 h-3 ml-1" />
+                    </Link>
+                  </div>
                 </div>
-
-                <h5 className="font-serif text-lg font-bold text-ink-950 group-hover:text-crimson transition-colors leading-snug mb-2">
-                  <a href={`#${article.slug}`}>{article.title}</a>
-                </h5>
-
-                <p className="font-sans text-xs text-ink-600 line-clamp-2 leading-relaxed mb-3">
-                  {article.excerpt}
-                </p>
-
-                <div className="flex items-center justify-between text-xs font-mono text-ink-500">
-                  <span>Lead Investigator: {article.author.name}</span>
-                  <span className="text-forest group-hover:translate-x-1 transition-transform inline-flex items-center font-medium">
-                    View Paper <ArrowUpRight className="w-3 h-3 ml-1" />
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Research Library Note */}

@@ -2,11 +2,14 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { leadStory, coverCompanionArticles } from "@/data/mockArticles";
-import { Clock, TrendingUp, ArrowUpRight, CheckCircle2, Bookmark, Share2 } from "lucide-react";
+import { Clock, TrendingUp, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { getArticleUrl } from "@/lib/routes";
 import ArticleCard from "@/components/editorial/ArticleCard";
 
 export default function HeroCoverStory() {
+  const leadUrl = getArticleUrl(leadStory.slug);
+
   return (
     <section id="cover-story" className="w-full pb-10">
       {/* Editorial Cover Badge & Metadata Bar */}
@@ -37,7 +40,7 @@ export default function HeroCoverStory() {
           <div>
             {/* Lead Headline */}
             <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-extrabold text-ink-950 tracking-tight leading-[1.12] mb-4 hover:text-crimson transition-colors">
-              <a href={`#${leadStory.slug}`}>{leadStory.title}</a>
+              <Link href={leadUrl}>{leadStory.title}</Link>
             </h2>
 
             {/* Subtitle / Deck */}
@@ -46,7 +49,10 @@ export default function HeroCoverStory() {
             </p>
 
             {/* Hero Image Spread */}
-            <div className="relative w-full h-[280px] sm:h-[400px] md:h-[460px] overflow-hidden bg-paper-200 border border-editorial-border mb-3 group">
+            <Link
+              href={leadUrl}
+              className="relative w-full h-[280px] sm:h-[400px] md:h-[460px] overflow-hidden bg-paper-200 border border-editorial-border mb-3 block group"
+            >
               <Image
                 src={leadStory.coverImage}
                 alt={leadStory.title}
@@ -62,7 +68,7 @@ export default function HeroCoverStory() {
                   </span>
                 </div>
               </div>
-            </div>
+            </Link>
 
             {/* Image Caption */}
             {leadStory.imageCaption && (
@@ -151,13 +157,13 @@ export default function HeroCoverStory() {
             </div>
 
             <div className="flex items-center gap-3 self-end sm:self-auto">
-              <a
-                href={`#${leadStory.slug}`}
+              <Link
+                href={leadUrl}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-paper text-xs font-semibold uppercase tracking-wider hover:bg-crimson transition-colors"
               >
                 <span>Read Full Cover Analysis</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
-              </a>
+              </Link>
             </div>
           </div>
         </article>

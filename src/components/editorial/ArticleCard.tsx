@@ -2,8 +2,9 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Article } from "@/lib/types";
-import { Clock, Bookmark, Share2, ArrowUpRight } from "lucide-react";
+import { Clock, ArrowUpRight } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { getArticleUrl } from "@/lib/routes";
 
 interface ArticleCardProps {
   article: Article;
@@ -18,11 +19,12 @@ export default function ArticleCard({
   rank,
   showImage = true,
 }: ArticleCardProps) {
+  const articleUrl = getArticleUrl(article.slug);
+
   // OPINION VARIANT (HBR / FT Guest Column style)
   if (variant === "opinion") {
     return (
       <article
-        id={article.slug}
         className="h-full flex flex-col justify-between p-6 bg-paper-ivory border border-editorial-border hover:border-ink-500 transition-all duration-200 group shadow-editorial hover:shadow-editorial-hover"
       >
         <div>
@@ -60,7 +62,9 @@ export default function ArticleCard({
 
           {/* Title as Pull-Quote */}
           <h3 className="font-serif text-lg sm:text-xl font-bold leading-snug text-ink-950 group-hover:text-crimson transition-colors mb-3">
-            &ldquo;{article.title}&rdquo;
+            <Link href={articleUrl} className="hover:underline underline-offset-2">
+              &ldquo;{article.title}&rdquo;
+            </Link>
           </h3>
 
           <p className="font-editorial text-sm text-ink-700 leading-relaxed line-clamp-3">
@@ -70,10 +74,13 @@ export default function ArticleCard({
 
         <div className="pt-4 mt-4 border-t border-editorial-border/60 flex items-center justify-between text-xs font-mono text-ink-500">
           <span>{formatDate(article.publishedAt)}</span>
-          <span className="inline-flex items-center gap-1 text-crimson font-medium group-hover:translate-x-1 transition-transform">
+          <Link
+            href={articleUrl}
+            className="inline-flex items-center gap-1 text-crimson font-medium group-hover:translate-x-1 transition-transform"
+          >
             <span>Read Column</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
-          </span>
+          </Link>
         </div>
       </article>
     );
@@ -83,11 +90,13 @@ export default function ArticleCard({
   if (variant === "horizontal") {
     return (
       <article
-        id={article.slug}
         className="flex flex-col sm:flex-row gap-5 p-4 bg-paper-ivory border border-editorial-border hover:border-ink-500 transition-all duration-200 group shadow-editorial hover:shadow-editorial-hover"
       >
         {showImage && article.coverImage && (
-          <div className="relative w-full sm:w-48 md:w-56 h-44 sm:h-auto shrink-0 overflow-hidden bg-paper-200">
+          <Link
+            href={articleUrl}
+            className="relative w-full sm:w-48 md:w-56 h-44 sm:h-auto shrink-0 overflow-hidden bg-paper-200 block"
+          >
             <Image
               src={article.coverImage}
               alt={article.title}
@@ -95,7 +104,7 @@ export default function ArticleCard({
               sizes="(max-width: 640px) 100vw, 224px"
               className="object-cover group-hover:scale-105 transition-transform duration-500"
             />
-          </div>
+          </Link>
         )}
 
         <div className="flex-1 flex flex-col justify-between">
@@ -112,7 +121,9 @@ export default function ArticleCard({
             </div>
 
             <h3 className="font-serif text-lg sm:text-xl font-bold text-ink-950 leading-snug group-hover:text-crimson transition-colors mb-2">
-              {article.title}
+              <Link href={articleUrl} className="hover:underline underline-offset-2">
+                {article.title}
+              </Link>
             </h3>
 
             <p className="font-sans text-xs sm:text-sm text-ink-600 line-clamp-2 sm:line-clamp-3 leading-relaxed mb-3">
@@ -128,7 +139,13 @@ export default function ArticleCard({
                 {article.author.affiliation}
               </span>
             </div>
-            <span>{formatDate(article.publishedAt)}</span>
+            <Link
+              href={articleUrl}
+              className="text-crimson font-medium inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform"
+            >
+              <span>Read</span>
+              <ArrowUpRight className="w-3 h-3" />
+            </Link>
           </div>
         </div>
       </article>
@@ -139,7 +156,6 @@ export default function ArticleCard({
   if (variant === "numbered") {
     return (
       <article
-        id={article.slug}
         className="flex gap-4 py-4 border-b border-editorial-border last:border-b-0 group"
       >
         <span className="font-serif text-3xl sm:text-4xl font-bold text-ink-300 group-hover:text-crimson transition-colors shrink-0 w-8">
@@ -156,7 +172,9 @@ export default function ArticleCard({
             </span>
           </div>
           <h4 className="font-serif text-sm sm:text-base font-bold text-ink-950 leading-snug group-hover:text-crimson transition-colors mb-1">
-            {article.title}
+            <Link href={articleUrl} className="hover:underline underline-offset-2">
+              {article.title}
+            </Link>
           </h4>
           <p className="text-xs font-mono text-ink-500">
             By {article.author.name}
@@ -170,7 +188,6 @@ export default function ArticleCard({
   if (variant === "compact") {
     return (
       <article
-        id={article.slug}
         className="py-3.5 border-b border-editorial-border/70 last:border-b-0 group"
       >
         <div className="flex items-center gap-2 mb-1">
@@ -183,14 +200,18 @@ export default function ArticleCard({
           </span>
         </div>
         <h4 className="font-serif text-base font-bold text-ink-950 leading-snug group-hover:text-crimson transition-colors mb-1">
-          {article.title}
+          <Link href={articleUrl} className="hover:underline underline-offset-2">
+            {article.title}
+          </Link>
         </h4>
         <p className="font-sans text-xs text-ink-600 line-clamp-2 leading-relaxed mb-2">
           {article.excerpt}
         </p>
         <div className="flex items-center justify-between text-[11px] font-mono text-ink-500">
           <span>By {article.author.name}</span>
-          <span>{formatDate(article.publishedAt)}</span>
+          <Link href={articleUrl} className="text-crimson font-medium">
+            Read Brief →
+          </Link>
         </div>
       </article>
     );
@@ -199,12 +220,14 @@ export default function ArticleCard({
   // STANDARD CARD (Default Grid Format)
   return (
     <article
-      id={article.slug}
       className="flex flex-col justify-between bg-paper-ivory border border-editorial-border hover:border-ink-500 transition-all duration-200 group shadow-editorial hover:shadow-editorial-hover"
     >
       <div>
         {showImage && article.coverImage && (
-          <div className="relative w-full h-48 sm:h-52 overflow-hidden bg-paper-200">
+          <Link
+            href={articleUrl}
+            className="relative w-full h-48 sm:h-52 overflow-hidden bg-paper-200 block"
+          >
             <Image
               src={article.coverImage}
               alt={article.title}
@@ -215,7 +238,7 @@ export default function ArticleCard({
             <div className="absolute top-2.5 left-2.5 bg-paper-ivory/95 px-2 py-0.5 border border-editorial-border text-[10px] font-mono uppercase font-bold text-ink-900 tracking-wider">
               {article.category.name}
             </div>
-          </div>
+          </Link>
         )}
 
         <div className="p-5">
@@ -228,7 +251,9 @@ export default function ArticleCard({
           </div>
 
           <h3 className="font-serif text-lg sm:text-xl font-bold text-ink-950 leading-snug group-hover:text-crimson transition-colors mb-2">
-            {article.title}
+            <Link href={articleUrl} className="hover:underline underline-offset-2">
+              {article.title}
+            </Link>
           </h3>
 
           <p className="font-editorial text-xs sm:text-sm text-ink-700 line-clamp-3 leading-relaxed mb-4">
@@ -269,9 +294,13 @@ export default function ArticleCard({
           </div>
         </div>
 
-        <span className="text-crimson group-hover:translate-x-1 transition-transform inline-flex items-center">
+        <Link
+          href={articleUrl}
+          className="text-crimson group-hover:translate-x-1 transition-transform inline-flex items-center"
+          aria-label={`Read article: ${article.title}`}
+        >
           <ArrowUpRight className="w-4 h-4" />
-        </span>
+        </Link>
       </div>
     </article>
   );

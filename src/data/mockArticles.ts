@@ -80,7 +80,7 @@ export const leadStory: Article = {
     role: "Editor-in-Chief",
     affiliation: "MBA Class of 2025 · Newsletter & Media Club",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80",
-    bio: "Former financial analyst and current student editor focusing on South Indian industrial corridors and capital formation.",
+    bio: "Former financial analyst and current student editor focusing on South Indian industrial corridors, capital formation, and management education policy.",
   },
   publishedAt: "2026-10-12T08:00:00Z",
   readingTime: "8 min read",
@@ -99,6 +99,45 @@ export const leadStory: Article = {
     { label: "Management Hiring Share", value: "28.5%", change: "+6.2 pts" },
     { label: "OU DBM Consulting Offers", value: "114", change: "+31% YoY" },
   ],
+  bodySections: [
+    {
+      id: "the-deccan-pivot",
+      heading: "I. The Deccan Pivot: From Back-Office to Mandate Hub",
+      paragraphs: [
+        "Across the arterial expressway connecting Madhapur to the Financial District, the nomenclature on monolithic glass towers has undergone a quiet yet monumental revolution. A decade ago, Hyderabad was celebrated in corporate boardrooms primarily as a cost-efficient delivery engine for offshore software maintenance. Today, the city commands the second-largest concentration of Global Capability Centres (GCCs) in the Asia-Pacific region, housing regional command centers for global investment banks, pharmaceutical giants, and automotive conglomerates.",
+        "Crucially, these entities are no longer operating as subservient satellites. They are drafting global risk models, executing enterprise AI transformations, and orchestrating cross-border supply chain architectures. For business schools throughout Telangana, this transition has created an unprecedented urgency to redefine what management education delivers.",
+      ],
+      pullQuote: {
+        quote: "We are no longer training administrators to oversee existing workflows; we are preparing decision architects who can stress-test algorithms and govern complex organizational transformations.",
+        attribution: "Senior Placement Advisory Board, OU DBM",
+      },
+    },
+    {
+      id: "curriculum-recalibration",
+      heading: "II. Recalibrating the Classroom: Beyond Pure Theory",
+      paragraphs: [
+        "At the Department of Business Management, Osmania University—an institution rooted in over six decades of academic leadership—faculty boards have initiated a series of structural curriculum revisions. The traditional silo between quantitative finance and corporate strategy has been dismantled in favor of integrated managerial laboratory electives.",
+        "Rather than studying retrospective case studies of mid-20th-century industrial enterprises, candidates are now dissecting real-time enterprise telemetry: how currency volatility affects multi-currency liquidity pools, and how automated regulatory compliance regimes alter executive liability.",
+      ],
+      bulletPoints: [
+        "Inauguration of the Applied Decision Science Lab featuring terminal simulations and real-world corporate dataset exercises.",
+        "Direct corporate mentorship pods pairing senior MBA scholars with resident Managing Directors across HITEC City GCCs.",
+        "Expansion of semester-long field consulting engagements with Telangana state industry cooperatives and regional MSME manufacturing hubs.",
+      ],
+    },
+    {
+      id: "the-human-dividend",
+      heading: "III. The Enduring Value of Judgement in an Algorithmic Era",
+      paragraphs: [
+        "Yet, amidst the rush toward predictive models and quantitative metrics, corporate recruiters visiting the Osmania campus emphasize a perennial reality: technical aptitude is merely table stakes. The defining asset of executive leadership remains ethical judgment, stakeholder diplomacy, and the capacity to lead through ambiguity.",
+        "As the 2026–27 academic year gets underway, the corridors of OU DBM reflect a campus mindful of its heritage but resolutely positioned at the cutting edge of modern enterprise governance.",
+      ],
+      callout: {
+        title: "Executive Synthesis",
+        content: "The modern Indian MBA graduate must bridge two previously separate domains: computational rigor and humanistic organizational leadership. Hyderabad's corporate ecosystem provides the ideal living laboratory for this synthesis.",
+      },
+    },
+  ],
 };
 
 export const coverCompanionArticles: Article[] = [
@@ -115,11 +154,18 @@ export const coverCompanionArticles: Article[] = [
       role: "Faculty Advisor",
       affiliation: "Professor of Corporate Finance, OU DBM",
       avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80",
+      bio: "Academic researcher and consultant specializing in corporate capital structure, healthcare M&A, and debt markets.",
     },
     publishedAt: "2026-10-13T10:30:00Z",
     readingTime: "5 min read",
     coverImage: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Automated fermentation bioreactors in a Genome Valley research cluster near Shameerpet, Hyderabad.",
     tags: ["Pharma", "Private Equity", "Genome Valley", "Healthcare"],
+    keyTakeaways: [
+      "Genome Valley accounts for one-third of global vaccine production capacity.",
+      "Institutional PE buyouts have accelerated as second-generation promoter families seek structured capital.",
+      "Regulatory compliance automation represents 40% of newly earmarked capital expenditure.",
+    ],
   },
   {
     id: "lead-comp-02",
@@ -134,11 +180,18 @@ export const coverCompanionArticles: Article[] = [
       role: "Associate Editor",
       affiliation: "MBA Class of 2026 · Placement Student Representative",
       avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80",
+      bio: "MBA candidate focusing on strategy and corporate relations, coordinating student executive placement activities.",
     },
     publishedAt: "2026-10-14T06:15:00Z",
     readingTime: "4 min read",
     coverImage: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Scholars from the MBA Class of 2026 participating in an interactive consulting case workshop on campus.",
     tags: ["Placements", "OU DBM", "Careers", "Consulting"],
+    keyTakeaways: [
+      "Consulting and strategy roles accounted for 31% of early autumn offers.",
+      "Average compensation package increased by 18.5% year-over-year.",
+      "First-time recruiters from global investment banking hubs constituted 22% of total visiting corporate houses.",
+    ],
   },
 ];
 
@@ -148,28 +201,28 @@ export const briefingStripItems = [
     label: "REGULATORY DISPATCH",
     headline: "RBI signals measured stance on shadow banking liquidity norms; impact on Telangana NBFC credit spreads expected minimal.",
     time: "2h ago",
-    slug: "#brief-1",
+    slug: "fintech-credit-underwriting-msme-tier-2-cities",
   },
   {
     id: "brief-2",
     label: "CAMPUS ARCHIVE",
     headline: "OU DBM marks 64 years of management excellence: Alumni Foundation announces ₹5 Crore endowment for faculty research fellowships.",
     time: "4h ago",
-    slug: "#brief-2",
+    slug: "sixty-four-years-of-dbm-legacy-to-frontier",
   },
   {
     id: "brief-3",
     label: "GLOBAL EXPANSION",
     headline: "Hyderabad aerospace corridor bags Tier-1 avionics contract for European civil aviation consortium.",
     time: "6h ago",
-    slug: "#brief-3",
+    slug: "green-hydrogen-industrial-corridors-telangana",
   },
   {
     id: "brief-4",
     label: "CASE COMPETITION",
     headline: "Team 'Chanakya' from OU DBM qualifies for the National Finals of the National Business Strategy Olympiad.",
     time: "8h ago",
-    slug: "#brief-4",
+    slug: "from-engineering-to-boardroom-the-mba-inflection",
   },
 ];
 
@@ -191,7 +244,12 @@ export const businessArticles: Article[] = [
     publishedAt: "2026-10-11T12:00:00Z",
     readingTime: "6 min read",
     coverImage: "https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Solar photovoltaic installation powering industrial operations on the outskirts of Hyderabad.",
     tags: ["Energy", "ESG", "Manufacturing", "Finance"],
+    keyTakeaways: [
+      "Heavy industrial clusters are locking in long-term green power purchase pacts.",
+      "Anticipated European carbon border tariffs are driving proactive corporate decarbonization.",
+    ],
   },
   {
     id: "biz-02",
@@ -210,7 +268,12 @@ export const businessArticles: Article[] = [
     publishedAt: "2026-10-10T14:20:00Z",
     readingTime: "4 min read",
     coverImage: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Digital merchant transaction points empowering regional business owners in tier-2 Telangana towns.",
     tags: ["Fintech", "MSMEs", "Credit", "Banking"],
+    keyTakeaways: [
+      "Cash flow scoring reduces formal loan processing times from 14 days to under 4 hours.",
+      "Cooperative credit institutions report non-performing asset rates below 1.2% using alternate data models.",
+    ],
   },
   {
     id: "biz-03",
@@ -229,6 +292,7 @@ export const businessArticles: Article[] = [
     publishedAt: "2026-10-09T09:15:00Z",
     readingTime: "5 min read",
     coverImage: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Grade-A corporate campuses lining the HITEC City IT corridor.",
     tags: ["Real Estate", "REITs", "Infrastructure", "Investment"],
   },
 ];
@@ -247,11 +311,17 @@ export const campusArticles: Article[] = [
       role: "Head of Department",
       affiliation: "Senior Professor of Management, OU DBM",
       avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&q=80",
+      bio: "Dean and Senior Professor with over three decades of research in institutional leadership and organizational sociology.",
     },
     publishedAt: "2026-10-08T11:00:00Z",
     readingTime: "7 min read",
     coverImage: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "The historic Osmania University campus quadrangle, home to generation of scholars since the university's establishment.",
     tags: ["History", "OU DBM", "Heritage", "Alumni"],
+    keyTakeaways: [
+      "Founded in 1962, OU DBM was one of the earliest management faculties instituted in an Indian public university.",
+      "Over 12,000 alumni across 40 countries maintain active leadership networks.",
+    ],
   },
   {
     id: "camp-02",
@@ -270,6 +340,7 @@ export const campusArticles: Article[] = [
     publishedAt: "2026-10-07T15:45:00Z",
     readingTime: "5 min read",
     coverImage: "https://images.unsplash.com/photo-1606761568499-6d2451b23c66?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Traditional Pochampally ikat looms visited during the 8-week student consulting field research.",
     tags: ["Social Impact", "Consulting", "Handlooms", "Supply Chain"],
   },
   {
@@ -289,6 +360,7 @@ export const campusArticles: Article[] = [
     publishedAt: "2026-10-06T13:00:00Z",
     readingTime: "4 min read",
     coverImage: "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Alumni leadership panel addressing scholars during the annual mentorship conclave.",
     tags: ["Alumni", "Mentorship", "Leadership", "OU DBM"],
   },
 ];
@@ -307,11 +379,47 @@ export const researchArticles: Article[] = [
       role: "Dean of Research",
       affiliation: "Department of Business Management, Osmania University",
       avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=256&q=80",
+      bio: "Dean of Research specializing in corporate governance, institutional minority rights, and strategic transitions in family-managed enterprises.",
     },
     publishedAt: "2026-10-05T08:30:00Z",
     readingTime: "9 min read",
     coverImage: "https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Executive boardroom in central Hyderabad where empirical governance interviews were conducted.",
     tags: ["Working Paper", "Governance", "Family Business", "Corporate Strategy"],
+    keyTakeaways: [
+      "Independent board directors correlate with a 24% decrease in transition volatility.",
+      "Family business council constitutions reduce inter-generational litigation probability by over 60%.",
+      "Minority shareholder protections consistently yield superior long-term cost-of-capital terms.",
+    ],
+    bodySections: [
+      {
+        id: "empirical-foundation",
+        heading: "I. The Empirical Foundation: 120 Promoter Enterprises",
+        paragraphs: [
+          "Family-controlled conglomerates form the bedrock of the Indian industrial economy, generating over 70% of gross domestic private-sector revenues. However, as the post-liberalisation generation of visionary founders approaches statutory retirement, the question of leadership continuity has transitioned from an informal domestic discussion to a critical market governance issue.",
+          "This working paper examines panel data spanning 120 BSE-listed promoter-driven enterprises headquartered across South India between 2014 and 2025, tracking financial performance and market beta during succession announcements.",
+        ],
+      },
+      {
+        id: "governance-interventions",
+        heading: "II. Key Findings: The Power of Independent Charters",
+        paragraphs: [
+          "Our regression analysis demonstrates that companies that adopted a formalized 'Family Governance Charter' at least 36 months prior to an executive handover exhibited a statistically significant 24% lower stock price volatility compared to unstructured peers.",
+          "Furthermore, when the nomination and remuneration committee was chaired by an independent director without prior commercial ties to the promoter group, succession transitions were completed 4.2 months faster with zero recorded minority shareholder objections.",
+        ],
+        pullQuote: {
+          quote: "The durability of a family enterprise rests not on bloodline loyalty, but on the willingness to institutionalize transparent fiduciary governance.",
+          attribution: "Dr. K. Srinivas Rao, Dean of Research, OU DBM",
+        },
+      },
+      {
+        id: "policy-recommendations",
+        heading: "III. Recommendations for Regulatory & Corporate Practice",
+        paragraphs: [
+          "The paper concludes with three concrete recommendations for corporate boards: the institutionalization of mandatory non-promoter lead directors, the establishment of formalized dispute resolution councils, and the clear separation between family wealth management offices and enterprise operational executive councils.",
+        ],
+      },
+    ],
   },
   {
     id: "res-02",
@@ -330,7 +438,12 @@ export const researchArticles: Article[] = [
     publishedAt: "2026-10-04T10:15:00Z",
     readingTime: "7 min read",
     coverImage: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Market telemetry monitoring high-frequency retail derivative trading indicators.",
     tags: ["Behavioral Finance", "Capital Markets", "Derivatives", "Working Paper"],
+    keyTakeaways: [
+      "Over 88% of surveyed retail participants exhibited classic disposition effect and loss-chasing patterns.",
+      "Algorithmic cooling-off periods reduced repeat margin calls by 31% in empirical trials.",
+    ],
   },
   {
     id: "res-03",
@@ -349,6 +462,7 @@ export const researchArticles: Article[] = [
     publishedAt: "2026-10-02T16:00:00Z",
     readingTime: "8 min read",
     coverImage: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Cold-chain pharmaceutical telemetry validation at a Hyderabad logistics depot.",
     tags: ["Operations", "AI", "Supply Chain", "Pharma"],
   },
 ];
@@ -367,10 +481,12 @@ export const voicesArticles: Article[] = [
       role: "Student Columnist",
       affiliation: "MBA Class of 2025 · Former Software Engineer at Infosys",
       avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=256&q=80",
+      bio: "MBA scholar with four years of software engineering experience, writing on human capital and organizational strategy.",
     },
     publishedAt: "2026-10-03T11:45:00Z",
     readingTime: "4 min read",
     coverImage: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "MBA candidates debating strategic trade-offs inside an OU DBM seminar room.",
     tags: ["Opinion", "Student Voice", "Career Transition", "MBA Life"],
   },
   {
@@ -390,6 +506,7 @@ export const voicesArticles: Article[] = [
     publishedAt: "2026-10-01T09:00:00Z",
     readingTime: "5 min read",
     coverImage: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Financial towers of Mumbai where institutional investment banking teams operate round-the-clock.",
     tags: ["Internship", "Investment Banking", "Mumbai", "Finance"],
   },
   {
@@ -409,6 +526,7 @@ export const voicesArticles: Article[] = [
     publishedAt: "2026-09-28T14:30:00Z",
     readingTime: "5 min read",
     coverImage: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+    imageCaption: "Modern corporate atrium designed with sustainable biophilic architectural principles.",
     tags: ["Philosophy", "ESG", "Ethics", "Student Voice"],
   },
 ];
@@ -421,3 +539,19 @@ export const allArticles: Article[] = [
   ...researchArticles,
   ...voicesArticles,
 ];
+
+export function getArticleBySlug(slug: string): Article | undefined {
+  return allArticles.find((a) => a.slug === slug);
+}
+
+export function getRelatedArticles(currentSlug: string, limit: number = 3): Article[] {
+  const current = getArticleBySlug(currentSlug);
+  if (!current) return allArticles.slice(0, limit);
+
+  // Match by category first, then by tags
+  const others = allArticles.filter((a) => a.slug !== currentSlug);
+  const sameCategory = others.filter((a) => a.category.slug === current.category.slug);
+  const differentCategory = others.filter((a) => a.category.slug !== current.category.slug);
+
+  return [...sameCategory, ...differentCategory].slice(0, limit);
+}
