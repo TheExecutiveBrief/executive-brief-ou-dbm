@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Newsreader, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import SiteShell from "@/components/layout/SiteShell";
 import TopUtilityBar from "@/components/layout/TopUtilityBar";
 import Masthead from "@/components/layout/Masthead";
 import Navigation from "@/components/layout/Navigation";
@@ -76,17 +77,18 @@ export default function RootLayout({
       className={`${playfair.variable} ${newsreader.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-sans bg-paper text-ink min-h-screen flex flex-col antialiased selection:bg-crimson-light selection:text-crimson-900">
-        <header className="w-full bg-paper border-b border-editorial-border">
-          <TopUtilityBar />
-          <Masthead />
-          <Navigation />
-        </header>
-
-        <main className="flex-1 w-full max-w-masthead mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <SiteShell
+          header={
+            <header className="w-full bg-paper border-b border-editorial-border">
+              <TopUtilityBar />
+              <Masthead />
+              <Navigation />
+            </header>
+          }
+          footer={<Footer />}
+        >
           {children}
-        </main>
-
-        <Footer />
+        </SiteShell>
       </body>
     </html>
   );

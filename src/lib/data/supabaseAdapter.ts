@@ -1,5 +1,5 @@
 import { ContentRepository, BriefingStripItem } from "./repository";
-import { Article, Category, PublicationIssue, MarketIndicator } from "../types";
+import { Article, Author, Category, PublicationIssue, MarketIndicator } from "../types";
 import {
   DatabaseArticleRow,
   DatabaseAuthorRow,
@@ -219,5 +219,132 @@ export class SupabaseContentRepository implements ContentRepository {
     const all = await this.getAllArticles();
     const lead = all.find((a) => a.isLeadStory);
     return all.filter((a) => a.slug !== lead?.slug).slice(0, 2);
+  }
+
+  async getAllArticlesAdmin(): Promise<Article[]> {
+    type JoinedArticleRow = DatabaseArticleRow & {
+      category: DatabaseCategoryRow;
+      author: DatabaseAuthorRow;
+      issue: DatabaseIssueRow | null;
+    };
+
+    const rows = await this.fetchFromSupabase<JoinedArticleRow[]>(
+      "articles?select=*,category:categories(*),author:authors(*),issue:issues(slug)&order=created_at.desc"
+    );
+
+    return rows.map((r) =>
+      mapDatabaseArticleToArticle(
+        r,
+        mapDatabaseAuthorToAuthor(r.author),
+        mapDatabaseCategoryToCategory(r.category),
+        r.issue?.slug
+      )
+    );
+  }
+
+  async getArticleById(id: string): Promise<Article | undefined> {
+    type JoinedArticleRow = DatabaseArticleRow & {
+      category: DatabaseCategoryRow;
+      author: DatabaseAuthorRow;
+      issue: DatabaseIssueRow | null;
+    };
+
+    const rows = await this.fetchFromSupabase<JoinedArticleRow[]>(
+      `articles?select=*,category:categories(*),author:authors(*),issue:issues(slug)&id=eq.${encodeURIComponent(
+        id
+      )}&limit=1`
+    );
+
+    if (rows.length === 0) return undefined;
+    const r = rows[0];
+    return mapDatabaseArticleToArticle(
+      r,
+      mapDatabaseAuthorToAuthor(r.author),
+      mapDatabaseCategoryToCategory(r.category),
+      r.issue?.slug
+    );
+  }
+
+  async getAllAuthors(): Promise<Author[]> {
+    const rows = await this.fetchFromSupabase<DatabaseAuthorRow[]>(
+      "authors?select=*&order=name.asc"
+    );
+    return rows.map(mapDatabaseAuthorToAuthor);
+  }
+
+  async saveArticle(
+    articleData: Partial<Article> & { title: string; categoryId?: string; authorId?: string },
+    user?: { id: string; role: string }
+  ): Promise<Article> {
+    // Permission Enforcement Safeguard (client-side check mirrors PostgreSQL RLS policy)
+    if (user && (user.role === "contributor" || user.role === "staff_writer")) {
+      if (articleData.status === "published") {
+        throw new Error(
+          "Permission Denied: Contributors and Staff Writers cannot directly publish articles. Please submit for review."
+        );
+      }
+    }
+
+    const baseSlug = articleData.slug || articleData.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    const payload = {
+      title: articleData.title,
+      subtitle: articleData.subtitle || "",
+      slug: baseSlug,
+      excerpt: articleData.excerpt || articleData.title,
+      status: articleData.status || "draft",
+      reading_time: articleData.readingTime || "5 min read",
+      cover_image_url:
+        articleData.coverImage ||
+        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=85",
+      image_caption: articleData.imageCaption || null,
+      is_lead_story: Boolean(articleData.isLeadStory),
+      is_editor_pick: Boolean(articleData.isEditorPick),
+      is_breaking: Boolean(articleData.isBreaking),
+      edition: articleData.edition || "Hyderabad Edition",
+      tags: articleData.tags || [],
+      key_takeaways: articleData.keyTakeaways || [],
+      metrics: articleData.metrics || [],
+      body_sections: articleData.bodySections || [],
+      published_at: articleData.status === "published" ? (articleData.publishedAt || new Date().toISOString()) : null,
+      ...(articleData.categoryId ? { category_id: articleData.categoryId } : {}),
+      ...(articleData.authorId ? { author_id: articleData.authorId } : {}),
+    };
+
+    if (articleData.id) {
+      await this.fetchFromSupabase(`articles?id=eq.${encodeURIComponent(articleData.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      const updated = await this.getArticleById(articleData.id);
+      if (!updated) throw new Error("Failed to retrieve updated article from Supabase.");
+      return updated;
+    } else {
+      const createdRows = await this.fetchFromSupabase<DatabaseArticleRow[]>("articles", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      });
+      if (!createdRows || createdRows.length === 0) {
+        throw new Error("Failed to create article in Supabase.");
+      }
+      const created = await this.getArticleById(createdRows[0].id);
+      if (!created) throw new Error("Failed to retrieve created article from Supabase.");
+      return created;
+    }
+  }
+
+  async deleteArticle(id: string, user?: { id: string; role: string }): Promise<boolean> {
+    if (user && user.role !== "editor_in_chief" && user.role !== "section_editor") {
+      throw new Error("Permission Denied: Only editors can delete articles.");
+    }
+
+    await this.fetchFromSupabase(`articles?id=eq.${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    return true;
   }
 }

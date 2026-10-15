@@ -1,4 +1,4 @@
-import { Article, Category, PublicationIssue, MarketIndicator } from "../types";
+import { Article, Author, Category, PublicationIssue, MarketIndicator } from "../types";
 
 export interface BriefingStripItem {
   id: string;
@@ -55,4 +55,22 @@ export interface ContentRepository {
 
   /** Retrieve companion articles for the cover story section */
   getCoverCompanionArticles(): Promise<Article[]>;
+
+  /** Retrieve all articles including drafts and in-review for admin console */
+  getAllArticlesAdmin(): Promise<Article[]>;
+
+  /** Retrieve an article by ID for editing */
+  getArticleById(id: string): Promise<Article | undefined>;
+
+  /** Retrieve all authors for contributor management and selection */
+  getAllAuthors(): Promise<Author[]>;
+
+  /** Save an article (create or update) with role permission checks */
+  saveArticle(
+    articleData: Partial<Article> & { title: string; categoryId?: string; authorId?: string },
+    user?: { id: string; role: string }
+  ): Promise<Article>;
+
+  /** Delete or archive an article with role permission checks */
+  deleteArticle(id: string, user?: { id: string; role: string }): Promise<boolean>;
 }

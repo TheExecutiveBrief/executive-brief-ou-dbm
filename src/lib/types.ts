@@ -56,6 +56,7 @@ export interface Article {
   isBreaking?: boolean;
   edition?: string;
   issueSlug?: string;
+  status?: "draft" | "in_review" | "published" | "archived";
   tags: string[];
   keyTakeaways?: string[];
   metrics?: {
