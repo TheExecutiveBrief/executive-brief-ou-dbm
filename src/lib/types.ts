@@ -12,7 +12,7 @@ export interface Category {
   slug: CategorySlug;
   description: string;
   deskNumber: string;
-  accentColor?: string;
+  accentColor?: "crimson" | "brass" | "forest";
 }
 
 export interface Author {
@@ -55,6 +55,7 @@ export interface Article {
   isEditorPick?: boolean;
   isBreaking?: boolean;
   edition?: string;
+  issueSlug?: string;
   tags: string[];
   keyTakeaways?: string[];
   metrics?: {
@@ -72,6 +73,22 @@ export interface MarketIndicator {
   value: string;
   change: string;
   isPositive: boolean;
+}
+
+export interface PublicationIssue {
+  id: string;
+  slug: string;
+  volume: string;
+  issueNumber: string;
+  title: string;
+  description: string;
+  dateString: string;
+  academicYear: string;
+  isCurrent?: boolean;
+  coverStorySlug?: string;
+  coverImage?: string;
+  editorialNote?: string;
+  pdfUrl?: string; // only if real asset exists
 }
 
 export interface IssueMetadata {

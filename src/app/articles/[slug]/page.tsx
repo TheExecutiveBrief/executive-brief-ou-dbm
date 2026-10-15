@@ -10,7 +10,7 @@ import {
   currentIssue,
 } from "@/data/mockArticles";
 import { formatDate } from "@/lib/utils";
-import { getArticleUrl, getCategoryAnchor } from "@/lib/routes";
+import { getArticleUrl, getCategoryAnchor, getIssueUrl } from "@/lib/routes";
 import ReadingProgressBar from "@/components/article/ReadingProgressBar";
 import ShareArticleActions from "@/components/article/ShareArticleActions";
 import TableOfContents from "@/components/article/TableOfContents";
@@ -60,6 +60,9 @@ export async function generateMetadata({
       "The Executive Brief",
       "Osmania University MBA",
     ],
+    alternates: {
+      canonical: getArticleUrl(slug),
+    },
     authors: [{ name: article.author.name }],
     openGraph: {
       title: `${article.title} — The Executive Brief`,
@@ -133,9 +136,18 @@ export default async function ArticleDetailPage({ params }: PageProps) {
             <span className="font-mono text-xs font-bold uppercase tracking-widest text-crimson bg-crimson-light px-2.5 py-0.5 rounded">
               {article.category.name} · {article.category.deskNumber}
             </span>
-            <span className="font-mono text-xs text-ink-500">
-              {currentIssue.volume} · {currentIssue.issueNumber}
-            </span>
+            {article.issueSlug ? (
+              <Link
+                href={getIssueUrl(article.issueSlug)}
+                className="font-mono text-xs text-ink-500 hover:text-crimson transition-colors"
+              >
+                {currentIssue.volume} · {currentIssue.issueNumber}
+              </Link>
+            ) : (
+              <span className="font-mono text-xs text-ink-500">
+                {currentIssue.volume} · {currentIssue.issueNumber}
+              </span>
+            )}
           </div>
 
           {/* Main Headline */}

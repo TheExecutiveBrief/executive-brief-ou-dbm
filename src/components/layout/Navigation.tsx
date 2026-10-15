@@ -2,16 +2,17 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Search, Menu, X, ArrowUpRight, BookOpen, Compass } from "lucide-react";
+import { Search, Menu, X, ArrowUpRight } from "lucide-react";
 import SearchModal from "@/components/ui/SearchModal";
+import { getDeskUrl, getArchiveUrl } from "@/lib/routes";
 
 const navLinks = [
-  { name: "Cover Story", href: "#cover-story", badge: "Lead" },
-  { name: "Business & Markets", href: "#business-desk" },
-  { name: "Campus Leadership", href: "#campus-desk" },
-  { name: "Research & Insights", href: "#research-desk" },
-  { name: "Student Voices", href: "#voices-desk" },
-  { name: "Alumni Archive", href: "#archive" },
+  { name: "Cover Story", href: "/#cover-story", badge: "Lead" },
+  { name: "Business & Markets", href: getDeskUrl("business") },
+  { name: "Campus Leadership", href: getDeskUrl("campus") },
+  { name: "Research & Insights", href: getDeskUrl("research") },
+  { name: "Student Voices", href: getDeskUrl("voices") },
+  { name: "Issue Archive", href: getArchiveUrl() },
 ];
 
 export default function Navigation() {
@@ -40,7 +41,7 @@ export default function Navigation() {
             {/* Desktop Navigation Links */}
             <div className="hidden lg:flex items-center space-x-1 xl:space-x-3">
               <Link
-                href="#cover-story"
+                href="/#cover-story"
                 className="font-serif font-bold text-xs uppercase tracking-wider text-crimson px-2.5 py-1.5 hover:bg-crimson-light rounded transition-colors"
               >
                 Cover Feature

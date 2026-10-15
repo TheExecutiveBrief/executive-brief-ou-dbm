@@ -2,7 +2,8 @@ import React from "react";
 import SectionHeader from "@/components/editorial/SectionHeader";
 import ArticleCard from "@/components/editorial/ArticleCard";
 import { businessArticles, categories } from "@/data/mockArticles";
-import { TrendingUp, BarChart3, ArrowUpRight } from "lucide-react";
+import { BarChart3 } from "lucide-react";
+import { getDeskUrl } from "@/lib/routes";
 
 export default function BusinessDesk() {
   const leadArticle = businessArticles[0];
@@ -14,7 +15,7 @@ export default function BusinessDesk() {
         deskNumber={categories.business.deskNumber}
         title={categories.business.name}
         description={categories.business.description}
-        href="#business-archive"
+        href={getDeskUrl("business")}
         accentColor="brass"
       />
 

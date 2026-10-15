@@ -37,9 +37,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://executivebrief.oudbm.ac.in"),
   title: "The Executive Brief | Department of Business Management, Osmania University",
   description:
     "The flagship digital journal and executive publication of the Newsletter & Media Club, Department of Business Management (OU DBM), Osmania University. Covering business strategy, regional economies, campus leadership, academic research, and executive careers.",
+  alternates: {
+    canonical: "/",
+  },
   keywords: [
     "OU DBM",
     "Osmania University MBA",

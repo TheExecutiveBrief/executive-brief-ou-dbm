@@ -1,9 +1,12 @@
 import React from "react";
 import Link from "next/link";
 import { currentIssue } from "@/data/mockArticles";
-import { BookOpen, Award, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { getArchiveUrl, getIssueUrl } from "@/lib/routes";
 
 export default function Masthead() {
+  const currentIssueUrl = getIssueUrl("vol-24-issue-04");
+
   return (
     <div className="w-full bg-paper pt-6 pb-4 border-b border-editorial-border">
       <div className="max-w-masthead mx-auto px-4 sm:px-6 lg:px-8">
@@ -63,21 +66,24 @@ export default function Masthead() {
               <span className="bg-crimson text-paper-ivory px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
                 Current Dossier
               </span>
-              <span className="font-sans font-semibold text-ink-900">
+              <Link
+                href={currentIssueUrl}
+                className="font-sans font-semibold text-ink-900 hover:text-crimson transition-colors"
+              >
                 {currentIssue.theme}
-              </span>
+              </Link>
             </div>
 
             <div className="flex items-center gap-4 text-ink-500">
-              <span className="hidden sm:inline">ISSN (Digital): Pending Registration</span>
+              <span className="hidden sm:inline">Volume XXIV · No. 04</span>
               <span className="text-ink-400 hidden sm:inline">·</span>
-              <a
-                href="#archive"
+              <Link
+                href={getArchiveUrl()}
                 className="inline-flex items-center gap-1 text-crimson hover:underline font-semibold"
               >
-                <span>Read Digital PDF Edition</span>
+                <span>Browse Issue Archive</span>
                 <ArrowUpRight className="w-3 h-3" />
-              </a>
+              </Link>
             </div>
           </div>
         </div>

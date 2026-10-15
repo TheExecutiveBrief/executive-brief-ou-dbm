@@ -4,7 +4,7 @@ import SectionHeader from "@/components/editorial/SectionHeader";
 import { researchArticles, categories } from "@/data/mockArticles";
 import { FileText, ArrowUpRight } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import { getArticleUrl } from "@/lib/routes";
+import { getArticleUrl, getDeskUrl } from "@/lib/routes";
 
 export default function ResearchDesk() {
   const spotlightPaper = researchArticles[0];
@@ -17,7 +17,7 @@ export default function ResearchDesk() {
         deskNumber={categories.research.deskNumber}
         title={categories.research.name}
         description={categories.research.description}
-        href="#research-desk"
+        href={getDeskUrl("research")}
         accentColor="forest"
       />
 

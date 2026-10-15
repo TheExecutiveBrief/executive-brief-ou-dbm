@@ -1,4 +1,4 @@
-import { Article, Category, IssueMetadata, MarketIndicator } from "@/lib/types";
+import { Article, Category, IssueMetadata, MarketIndicator, PublicationIssue } from "@/lib/types";
 
 export const currentIssue: IssueMetadata = {
   volume: "Vol. XXIV",
@@ -7,6 +7,25 @@ export const currentIssue: IssueMetadata = {
   academicYear: "Academic Year 2026–27",
   theme: "The New Indian Enterprise: Talent, Capital, and the Hyderabad Nexus",
 };
+
+export const publicationIssues: PublicationIssue[] = [
+  {
+    id: "issue-vol-24-no-04",
+    slug: "vol-24-issue-04",
+    volume: "Vol. XXIV",
+    issueNumber: "No. 04",
+    title: "The New Indian Enterprise: Talent, Capital, and the Hyderabad Nexus",
+    description:
+      "The flagship digital dossier of The Executive Brief examining Hyderabad's corporate GCC explosion, private equity capital across Genome Valley, empirical faculty governance research, and student dispatches from Dalal Street to regional handloom clusters.",
+    dateString: "Mid-October 2026",
+    academicYear: "Academic Year 2026–27",
+    isCurrent: true,
+    coverStorySlug: "twin-cities-corridor-hyderabad-gcc-boom-management-education",
+    coverImage: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=85",
+    editorialNote:
+      "Curated by the Newsletter & Media Club under the auspices of the Department of Business Management, Osmania University. This demonstration volume marks the inaugural digital release for the academic year 2026–27.",
+  },
+];
 
 export const marketIndicators: MarketIndicator[] = [
   { symbol: "SENSEX", name: "BSE Sensex", value: "82,490.12", change: "+0.42%", isPositive: true },
@@ -21,7 +40,7 @@ export const categories: Record<string, Category> = {
     id: "cat-special",
     name: "Special Report",
     slug: "special-report",
-    description: "In-depth investigative briefings and comprehensive economic surveys.",
+    description: "In-depth investigative briefings, comprehensive economic surveys, and featured cover dossiers.",
     deskNumber: "Desk 00",
     accentColor: "crimson",
   },
@@ -74,6 +93,7 @@ export const leadStory: Article = {
   subtitle: "With over 1,400 Global Capability Centres anchored between HITEC City and the Financial District, corporate leaders are demanding a structural pivot in MBA curricula from traditional administration to algorithmic decision governance.",
   excerpt: "An extensive investigation into how Telangana's tech-corporate axis has reshaped recruitment at Osmania University, driving double-digit gains in consulting and analytics roles while pressing business schools to overhaul legacy frameworks.",
   category: categories.specialReport,
+  issueSlug: "vol-24-issue-04",
   author: {
     id: "auth-01",
     name: "K. R. V. Narayana",
@@ -148,6 +168,7 @@ export const coverCompanionArticles: Article[] = [
     subtitle: "Why global healthcare funds are bypassing traditional venture corridors to back mid-market bulk drug innovators in Telangana.",
     excerpt: "With over $2.4B invested across Genome Valley in the past 18 months, mid-tier Hyderabad pharma operators are turning to institutional private equity to finance US-FDA compliant automation.",
     category: categories.business,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-02",
       name: "Dr. Radhika V. Sastri",
@@ -174,6 +195,7 @@ export const coverCompanionArticles: Article[] = [
     subtitle: "A detailed breakdown of the 2026 early recruitment window at Department of Business Management, Osmania University.",
     excerpt: "Early trends indicate robust demand across BFSI risk advisory and product management, with international conglomerates expanding direct campus interviews on the OU campus.",
     category: categories.campus,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-03",
       name: "Aditya S. Chary",
@@ -234,6 +256,7 @@ export const businessArticles: Article[] = [
     subtitle: "Heavy industry conglomerates around the Hyderabad-Warangal belt are securing long-term power purchase agreements for green hydrogen.",
     excerpt: "How forward-thinking manufacturing CFOs are balancing near-term Capex spikes against stringent EU carbon border adjustment mechanisms.",
     category: categories.business,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-04",
       name: "Siddharth Ramamurthy",
@@ -258,6 +281,7 @@ export const businessArticles: Article[] = [
     subtitle: "Alternative data scoring is bypassing legacy collateral models to finance textile and agricultural processing hubs.",
     excerpt: "Field research reveals a 42% faster loan approval rate across rural cooperatives adopting digital transaction trail scoring.",
     category: categories.business,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-05",
       name: "Ananya Rao",
@@ -282,6 +306,7 @@ export const businessArticles: Article[] = [
     subtitle: "Foreign institutional REITs report record lease renewals in Madhapur and Gachibowli amid sustained global workforce expansions.",
     excerpt: "Institutional yields continue to outperform traditional metropolitan peers as infrastructure projects like the Metro Phase 2 decongest transit routes.",
     category: categories.business,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-01",
       name: "K. R. V. Narayana",
@@ -305,6 +330,7 @@ export const campusArticles: Article[] = [
     subtitle: "A historical retrospection on the Department of Business Management, Osmania University, founded in 1962 under visionary leadership.",
     excerpt: "As one of South India's oldest university business schools, OU DBM has seeded CEOs, civil servants, policymakers, and entrepreneurial pioneers across the globe.",
     category: categories.campus,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-06",
       name: "Prof. P. Venkataswamy",
@@ -330,6 +356,7 @@ export const campusArticles: Article[] = [
     subtitle: "MBA candidates partner with state weavers' cooperatives to implement digital inventory reconciliation and direct D2C logistics.",
     excerpt: "Bridging classroom operations theory with grassroots commerce, the 8-week field intervention helped artisanal weavers recover a 19% margin previously lost to intermediaries.",
     category: categories.campus,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-07",
       name: "Meera Krishnan",
@@ -350,6 +377,7 @@ export const campusArticles: Article[] = [
     subtitle: "Senior leaders from London, Singapore, New York, and Mumbai assemble at the University Club to mentor the upcoming batch.",
     excerpt: "Over 40 executive alumni conducted one-on-one leadership diagnostic clinics, resume clinics, and corporate navigation seminars for the Class of 2026.",
     category: categories.campus,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-03",
       name: "Aditya S. Chary",
@@ -373,6 +401,7 @@ export const researchArticles: Article[] = [
     subtitle: "An empirical examination of 120 family-managed conglomerates navigating succession transitions, board independence, and minority shareholder rights.",
     excerpt: "Department faculty study proves that structured family council charters combined with independent audit board chairs correlate with a 24% reduction in enterprise valuation volatility during leadership handovers.",
     category: categories.research,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-08",
       name: "Dr. K. Srinivas Rao",
@@ -428,6 +457,7 @@ export const researchArticles: Article[] = [
     subtitle: "Why the surge in zero-commission retail F&O volume in Tier-2/3 Indian cities warrants proactive behavioral nudges rather than blanket prohibitions.",
     excerpt: "Examining 450,000 anonymised trading logs, OU DBM behavioral finance researchers highlight the psychological triggers driving loss-chasing among post-pandemic retail market entrants.",
     category: categories.research,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-02",
       name: "Dr. Radhika V. Sastri",
@@ -452,6 +482,7 @@ export const researchArticles: Article[] = [
     subtitle: "A collaborative whitepaper between OU DBM Operations Lab and Indian Vaccine Manufacturers on preventing transit excursion losses.",
     excerpt: "Real-time IoT sensor telemetry combined with neural path prediction reduces temperature excursion scrap rates to under 0.08% across complex pan-India transit corridors.",
     category: categories.research,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-09",
       name: "Dr. Sandhya V. Murthy",
@@ -475,6 +506,7 @@ export const voicesArticles: Article[] = [
     subtitle: "How moving from deterministic code loops to ambiguous organizational dynamics tests every prior instinct of a technical graduate.",
     excerpt: "In engineering, 2+2 reliably equals 4. In corporate leadership, people bring emotional liabilities, misaligned incentives, and conflicting agendas into every decision meeting. Here is how the DBM case method cured my hubris.",
     category: categories.voices,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-10",
       name: "Pranav Teja",
@@ -496,6 +528,7 @@ export const voicesArticles: Article[] = [
     subtitle: "An unvarnished account of an OU DBM candidate’s eight weeks inside an institutional M&A advisory desk.",
     excerpt: "You learn quickly that financial modeling is barely half the game. The real discipline lies in managing client optics under exhaustion, verifying footnote assumptions, and defending valuations before senior partners.",
     category: categories.voices,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-11",
       name: "Sanya Fatima",
@@ -516,6 +549,7 @@ export const voicesArticles: Article[] = [
     subtitle: "A critique of classical agency theory through the eyes of an emerging cohort conscious of climate risks.",
     excerpt: "As future managers inheriting a planet stressed by ecological overshoot, we can no longer afford to treat social negative externalities as harmless footnotes in discounted cash flow spreadsheets.",
     category: categories.voices,
+    issueSlug: "vol-24-issue-04",
     author: {
       id: "auth-04",
       name: "Siddharth Ramamurthy",
@@ -540,6 +574,7 @@ export const allArticles: Article[] = [
   ...voicesArticles,
 ];
 
+// Query Helpers
 export function getArticleBySlug(slug: string): Article | undefined {
   return allArticles.find((a) => a.slug === slug);
 }
@@ -548,10 +583,33 @@ export function getRelatedArticles(currentSlug: string, limit: number = 3): Arti
   const current = getArticleBySlug(currentSlug);
   if (!current) return allArticles.slice(0, limit);
 
-  // Match by category first, then by tags
   const others = allArticles.filter((a) => a.slug !== currentSlug);
   const sameCategory = others.filter((a) => a.category.slug === current.category.slug);
   const differentCategory = others.filter((a) => a.category.slug !== current.category.slug);
 
   return [...sameCategory, ...differentCategory].slice(0, limit);
+}
+
+export function getAllCategories(): Category[] {
+  return Object.values(categories);
+}
+
+export function getCategoryBySlug(slug: string): Category | undefined {
+  return Object.values(categories).find((c) => c.slug === slug);
+}
+
+export function getArticlesByDesk(categorySlug: string): Article[] {
+  return allArticles.filter((a) => a.category.slug === categorySlug);
+}
+
+export function getAllIssues(): PublicationIssue[] {
+  return publicationIssues;
+}
+
+export function getIssueBySlug(slug: string): PublicationIssue | undefined {
+  return publicationIssues.find((i) => i.slug === slug);
+}
+
+export function getArticlesByIssue(issueSlug: string): Article[] {
+  return allArticles.filter((a) => a.issueSlug === issueSlug);
 }

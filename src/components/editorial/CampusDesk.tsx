@@ -2,7 +2,8 @@ import React from "react";
 import SectionHeader from "@/components/editorial/SectionHeader";
 import ArticleCard from "@/components/editorial/ArticleCard";
 import { campusArticles, categories } from "@/data/mockArticles";
-import { GraduationCap, Award, Users, BookOpen } from "lucide-react";
+import { GraduationCap, Award, Users } from "lucide-react";
+import { getDeskUrl } from "@/lib/routes";
 
 export default function CampusDesk() {
   return (
@@ -11,7 +12,7 @@ export default function CampusDesk() {
         deskNumber={categories.campus.deskNumber}
         title={categories.campus.name}
         description={categories.campus.description}
-        href="#campus-archive"
+        href={getDeskUrl("campus")}
         accentColor="crimson"
       />
 

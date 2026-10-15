@@ -2,7 +2,8 @@ import React from "react";
 import SectionHeader from "@/components/editorial/SectionHeader";
 import ArticleCard from "@/components/editorial/ArticleCard";
 import { voicesArticles, categories } from "@/data/mockArticles";
-import { MessageSquareQuote, Award } from "lucide-react";
+import { MessageSquareQuote } from "lucide-react";
+import { getDeskUrl } from "@/lib/routes";
 
 export default function VoicesDesk() {
   return (
@@ -11,7 +12,7 @@ export default function VoicesDesk() {
         deskNumber={categories.voices.deskNumber}
         title={categories.voices.name}
         description={categories.voices.description}
-        href="#voices-archive"
+        href={getDeskUrl("voices")}
         accentColor="brass"
       />
 

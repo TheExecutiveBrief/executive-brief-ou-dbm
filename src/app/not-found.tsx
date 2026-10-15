@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, Layers, Compass } from "lucide-react";
+import { getArchiveUrl, getDeskUrl } from "@/lib/routes";
 
 export default function NotFound() {
   return (
@@ -21,13 +22,27 @@ export default function NotFound() {
         The requested editorial briefing, article slug, or archived document does not exist in the active dossier of The Executive Brief by OU DBM.
       </p>
 
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+      <div className="flex flex-wrap items-center justify-center gap-3">
         <Link
           href="/"
           className="inline-flex items-center gap-2 px-6 py-3 bg-ink text-paper text-xs font-mono font-bold uppercase tracking-wider hover:bg-crimson transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Return to Front Page</span>
+        </Link>
+        <Link
+          href={getArchiveUrl()}
+          className="inline-flex items-center gap-2 px-6 py-3 bg-paper-200 text-ink-900 text-xs font-mono font-bold uppercase tracking-wider hover:bg-paper-300 transition-colors border border-editorial-border"
+        >
+          <Layers className="w-4 h-4 text-crimson" />
+          <span>Browse Issue Archive</span>
+        </Link>
+        <Link
+          href={getDeskUrl("business")}
+          className="inline-flex items-center gap-2 px-6 py-3 bg-paper-ivory text-ink-800 text-xs font-mono font-bold uppercase tracking-wider hover:text-crimson transition-colors border border-editorial-border"
+        >
+          <Compass className="w-4 h-4 text-crimson" />
+          <span>Explore Desks</span>
         </Link>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowUpRight, ShieldCheck, Mail, MapPin, ExternalLink } from "lucide-react";
+import { Mail, MapPin, ExternalLink, ArrowUpRight } from "lucide-react";
+import { getDeskUrl, getArchiveUrl } from "@/lib/routes";
 
 export default function Footer() {
   return (
@@ -45,34 +46,40 @@ export default function Footer() {
             </h4>
             <ul className="space-y-2 text-xs font-sans">
               <li>
-                <a href="#cover-story" className="hover:text-crimson transition-colors flex items-center justify-between">
+                <Link href="/#cover-story" className="hover:text-crimson transition-colors flex items-center justify-between">
                   <span>Cover Story & Special Reports</span>
                   <span className="font-mono text-[10px] text-ink-400">Desk 00</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#business-desk" className="hover:text-crimson transition-colors flex items-center justify-between">
+                <Link href={getDeskUrl("business")} className="hover:text-crimson transition-colors flex items-center justify-between">
                   <span>Business & Markets</span>
                   <span className="font-mono text-[10px] text-ink-400">Desk 01</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#campus-desk" className="hover:text-crimson transition-colors flex items-center justify-between">
+                <Link href={getDeskUrl("campus")} className="hover:text-crimson transition-colors flex items-center justify-between">
                   <span>Campus Leadership</span>
                   <span className="font-mono text-[10px] text-ink-400">Desk 02</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#research-desk" className="hover:text-crimson transition-colors flex items-center justify-between">
+                <Link href={getDeskUrl("research")} className="hover:text-crimson transition-colors flex items-center justify-between">
                   <span>Faculty Research & Insights</span>
                   <span className="font-mono text-[10px] text-ink-400">Desk 03</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#voices-desk" className="hover:text-crimson transition-colors flex items-center justify-between">
+                <Link href={getDeskUrl("voices")} className="hover:text-crimson transition-colors flex items-center justify-between">
                   <span>Student Voices & Op-Eds</span>
                   <span className="font-mono text-[10px] text-ink-400">Desk 04</span>
-                </a>
+                </Link>
+              </li>
+              <li>
+                <Link href={getArchiveUrl()} className="hover:text-crimson transition-colors flex items-center justify-between text-crimson font-medium">
+                  <span>Publication Issue Archive</span>
+                  <ArrowUpRight className="w-3 h-3" />
+                </Link>
               </li>
             </ul>
           </div>
@@ -95,24 +102,24 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <a href="#placement-cell" className="hover:text-crimson transition-colors">
+                <Link href={getDeskUrl("campus")} className="hover:text-crimson transition-colors">
                   OU DBM Corporate Relations & Placement Cell
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#alumni-association" className="hover:text-crimson transition-colors">
+                <Link href={getDeskUrl("campus")} className="hover:text-crimson transition-colors">
                   OU DBM Global Alumni Association (1962–Present)
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#editorial-board" className="hover:text-crimson transition-colors">
+                <Link href={getDeskUrl("voices")} className="hover:text-crimson transition-colors">
                   Media & Newsletter Club Masthead Roster
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#ethics-code" className="hover:text-crimson transition-colors">
-                  Journalistic Ethics, Accuracy & Corrections Code
-                </a>
+                <Link href={getArchiveUrl()} className="hover:text-crimson transition-colors">
+                  Digital Archives & Special Editions
+                </Link>
               </li>
             </ul>
 
@@ -132,19 +139,15 @@ export default function Footer() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-[11px]">
-            <a href="#privacy" className="hover:text-crimson transition-colors">
-              Privacy Policy
-            </a>
+            <Link href={getArchiveUrl()} className="hover:text-crimson transition-colors">
+              Issue Archive
+            </Link>
             <span>·</span>
-            <a href="#terms" className="hover:text-crimson transition-colors">
-              Terms of Publication
-            </a>
+            <Link href={getDeskUrl("special-report")} className="hover:text-crimson transition-colors">
+              Special Reports
+            </Link>
             <span>·</span>
-            <a href="#disclaimer" className="hover:text-crimson transition-colors">
-              Academic Disclaimer
-            </a>
-            <span>·</span>
-            <span className="text-ink-400">Milestone 1 — Design System & Homepage</span>
+            <span className="text-ink-400">Milestone 3 — Desk Archives & Issue Explorer</span>
           </div>
         </div>
       </div>
