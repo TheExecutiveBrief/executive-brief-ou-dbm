@@ -1,13 +1,27 @@
 import React from "react";
-import Image from "next/image";
+import SafeImage from "@/components/ui/SafeImage";
 import Link from "next/link";
-import { leadStory, coverCompanionArticles } from "@/data/mockArticles";
+import { leadStory as defaultLeadStory, coverCompanionArticles as defaultCompanionArticles } from "@/data/mockArticles";
+import { Article } from "@/lib/types";
 import { Clock, TrendingUp, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { getArticleUrl } from "@/lib/routes";
 import ArticleCard from "@/components/editorial/ArticleCard";
 
-export default function HeroCoverStory() {
+interface HeroCoverStoryProps {
+  leadStory?: Article | null;
+  companionArticles?: Article[];
+}
+
+export default function HeroCoverStory({
+  leadStory: propLeadStory,
+  companionArticles: propCompanionArticles,
+}: HeroCoverStoryProps = {}) {
+  const leadStory = propLeadStory || defaultLeadStory;
+  const coverCompanionArticles =
+    propCompanionArticles && propCompanionArticles.length > 0
+      ? propCompanionArticles
+      : defaultCompanionArticles;
   const leadUrl = getArticleUrl(leadStory.slug);
 
   return (
@@ -53,7 +67,7 @@ export default function HeroCoverStory() {
               href={leadUrl}
               className="relative w-full h-[280px] sm:h-[400px] md:h-[460px] overflow-hidden bg-paper-200 border border-editorial-border mb-3 block group"
             >
-              <Image
+              <SafeImage
                 src={leadStory.coverImage}
                 alt={leadStory.title}
                 fill
@@ -133,7 +147,7 @@ export default function HeroCoverStory() {
           <div className="p-4 bg-paper-50 border border-editorial-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="relative w-11 h-11 rounded-full overflow-hidden border border-editorial-border shrink-0">
-                <Image
+                <SafeImage
                   src={leadStory.author.avatar}
                   alt={leadStory.author.name}
                   fill

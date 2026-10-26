@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { EditorialUser, permissions } from "@/lib/auth/types";
 import {
   LayoutDashboard,
   FileText,
@@ -11,19 +12,20 @@ import {
   BookOpen,
   Settings,
   PlusCircle,
+  Clock,
+  CheckSquare,
+  UserCheck,
+  Shield,
+  History,
 } from "lucide-react";
 
-const adminNavItems = [
-  { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
-  { name: "Articles", href: "/admin/articles", icon: FileText, exact: false },
-  { name: "Authors", href: "/admin/authors", icon: Users, exact: false },
-  { name: "Desks", href: "/admin/desks", icon: Compass, exact: false },
-  { name: "Issues", href: "/admin/issues", icon: BookOpen, exact: false },
-  { name: "Settings", href: "/admin/settings", icon: Settings, exact: false },
-];
+interface AdminNavProps {
+  user?: EditorialUser;
+}
 
-export default function AdminNav() {
+export default function AdminNav({ user }: AdminNavProps) {
   const pathname = usePathname();
+  const role = user?.role;
 
   const isLinkActive = (href: string, exact: boolean) => {
     if (exact) {
@@ -32,13 +34,92 @@ export default function AdminNav() {
     return pathname.startsWith(href);
   };
 
+  const navItems = useMemo(() => {
+    const items = [
+      { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
+      {
+        name:
+          permissions.isEditorialEditor(role) || permissions.isAdministrator(role)
+            ? "Dispatches"
+            : "My Dispatches",
+        href: "/admin/articles",
+        icon: FileText,
+        exact: false,
+      },
+    ];
+
+    // Editorial Editors & Chief Editor see Editorial Review Queue
+    if (permissions.isEditorialEditor(role)) {
+      items.push({
+        name: "Editorial Queue",
+        href: "/admin/queue/editorial",
+        icon: Clock,
+        exact: false,
+      });
+    }
+
+    // Chief Editor sees Chief Review Queue (final sanction)
+    if (permissions.isChiefEditor(role)) {
+      items.push({
+        name: "Chief Queue",
+        href: "/admin/queue/chief",
+        icon: CheckSquare,
+        exact: false,
+      });
+    }
+
+    // Editorial and publishing structures
+    if (permissions.isEditorialEditor(role) || permissions.isAdministrator(role)) {
+      items.push({ name: "Desks", href: "/admin/desks", icon: Compass, exact: false });
+    }
+
+    if (permissions.isChiefEditor(role) || permissions.isAdministrator(role)) {
+      items.push({ name: "Issues", href: "/admin/issues", icon: BookOpen, exact: false });
+      items.push({ name: "Authors", href: "/admin/authors", icon: Users, exact: false });
+    }
+
+    // Administrators only: User applications, team roles, and audit log
+    if (permissions.isAdministrator(role)) {
+      items.push({
+        name: "Applications",
+        href: "/admin/applications",
+        icon: UserCheck,
+        exact: false,
+      });
+      items.push({
+        name: "Team & Roles",
+        href: "/admin/users",
+        icon: Shield,
+        exact: false,
+      });
+      items.push({
+        name: "Audit Log",
+        href: "/admin/audit",
+        icon: History,
+        exact: false,
+      });
+    }
+
+    // System Settings: Accessible to Administrators and Editor-in-Chief
+    if (permissions.canManageSettings(role)) {
+      items.push({
+        name: "Settings",
+        href: "/admin/settings",
+        icon: Settings,
+        exact: false,
+      });
+    }
+
+    return items;
+  }, [role]);
+
   return (
     <nav className="w-full bg-paper border-b border-editorial-border sticky top-16 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-12">
           {/* Left: Tab Links */}
           <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar py-1">
-            {adminNavItems.map((item) => {
+            {navItems.map((item) => {
               const active = isLinkActive(item.href, item.exact);
               const Icon = item.icon;
               return (

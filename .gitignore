@@ -26,6 +26,12 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# local Supabase linkage and database backups
+/supabase/.temp/
+/public-schema-backup.sql
+/remote_database_backup.json
+/remote_schema_dump.sql
+
 # vercel
 .vercel
 

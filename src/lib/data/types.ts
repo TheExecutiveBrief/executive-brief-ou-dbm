@@ -1,4 +1,5 @@
 import { Article, Author, Category, PublicationIssue, MarketIndicator, ArticleSection } from "../types";
+import { EditorialUser, EditorialRole, AccountStatus } from "../auth/types";
 
 // ==============================================================================
 // Database Row Representations (Direct mapping to PostgreSQL schema columns)
@@ -78,6 +79,13 @@ export interface DatabaseArticleRow {
   canonical_url: string | null;
   created_by: string | null;
   updated_by: string | null;
+  workflow_stage?: "draft" | "editorial_review" | "chief_review" | "revision_requested" | "published" | "archived";
+  current_reviewer_id?: string | null;
+  last_revision_reason?: string | null;
+  submitted_at?: string | null;
+  editorial_reviewed_at?: string | null;
+  editorial_reviewed_by?: string | null;
+  published_by?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,9 +112,49 @@ export interface DatabaseWireBriefingRow {
   published_at: string;
 }
 
+export interface DatabaseEditorialProfileRow {
+  id: string;
+  email: string;
+  full_name: string;
+  role: EditorialRole;
+  avatar_url: string | null;
+  bio: string | null;
+  is_active: boolean;
+  approval_status?: AccountStatus;
+  application_reason?: string | null;
+  requested_role?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ==============================================================================
 // Database-to-Domain Mapping Layer
 // ==============================================================================
+
+export function mapDatabaseProfileToEditorialUser(
+  row: DatabaseEditorialProfileRow,
+  assignedSections?: string[]
+): EditorialUser {
+  let status: AccountStatus = "approved";
+  if (row.approval_status) {
+    status = row.approval_status;
+  } else if (row.is_active === false) {
+    status = "suspended";
+  }
+
+  return {
+    id: row.id,
+    email: row.email,
+    fullName: row.full_name,
+    role: row.role,
+    approvalStatus: status,
+    assignedSections: assignedSections || [],
+    avatarUrl: row.avatar_url ?? undefined,
+    bio: row.bio ?? undefined,
+  };
+}
 
 export function mapDatabaseCategoryToCategory(row: DatabaseCategoryRow): Category {
   return {
@@ -174,6 +222,24 @@ export function mapDatabaseArticleToArticle(
     isBreaking: row.is_breaking,
     edition: row.edition ?? undefined,
     issueSlug: issueSlug,
+    status: row.status,
+    workflowStage: row.workflow_stage || (
+      row.status === "published"
+        ? "published"
+        : row.status === "in_review"
+        ? "editorial_review"
+        : row.status === "archived"
+        ? "archived"
+        : "draft"
+    ),
+    createdBy: row.created_by ?? undefined,
+    updatedBy: row.updated_by ?? undefined,
+    currentReviewerId: row.current_reviewer_id ?? undefined,
+    lastRevisionReason: row.last_revision_reason ?? undefined,
+    submittedAt: row.submitted_at ?? undefined,
+    editorialReviewedAt: row.editorial_reviewed_at ?? undefined,
+    editorialReviewedBy: row.editorial_reviewed_by ?? undefined,
+    publishedBy: row.published_by ?? undefined,
     tags: row.tags ?? [],
     keyTakeaways: row.key_takeaways ?? undefined,
     metrics: row.metrics && row.metrics.length > 0 ? row.metrics : undefined,

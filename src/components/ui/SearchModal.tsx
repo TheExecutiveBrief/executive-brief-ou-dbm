@@ -15,24 +15,63 @@ interface SearchModalProps {
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Article[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (query.trim() === "") {
       setResults([]);
+      setIsLoading(false);
       return;
     }
 
-    const q = query.toLowerCase();
-    const filtered = allArticles.filter((article) => {
-      const inTitle = article.title.toLowerCase().includes(q);
-      const inExcerpt = article.excerpt.toLowerCase().includes(q);
-      const inTags = article.tags.some((t) => t.toLowerCase().includes(q));
-      const inAuthor = article.author.name.toLowerCase().includes(q);
-      const inCategory = article.category.name.toLowerCase().includes(q);
-      return inTitle || inExcerpt || inTags || inAuthor || inCategory;
-    });
+    const controller = new AbortController();
+    setIsLoading(true);
 
-    setResults(filtered);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/articles?query=${encodeURIComponent(query.trim())}`, {
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setResults(data.articles || []);
+        } else {
+          // Fallback to local
+          const q = query.toLowerCase();
+          setResults(
+            allArticles.filter((article) => {
+              const inTitle = article.title.toLowerCase().includes(q);
+              const inExcerpt = article.excerpt.toLowerCase().includes(q);
+              const inTags = article.tags.some((t) => t.toLowerCase().includes(q));
+              const inAuthor = article.author.name.toLowerCase().includes(q);
+              const inCategory = article.category.name.toLowerCase().includes(q);
+              return inTitle || inExcerpt || inTags || inAuthor || inCategory;
+            })
+          );
+        }
+      } catch (err: unknown) {
+        if ((err as Error).name !== "AbortError") {
+          const q = query.toLowerCase();
+          setResults(
+            allArticles.filter((article) => {
+              const inTitle = article.title.toLowerCase().includes(q);
+              const inExcerpt = article.excerpt.toLowerCase().includes(q);
+              const inTags = article.tags.some((t) => t.toLowerCase().includes(q));
+              const inAuthor = article.author.name.toLowerCase().includes(q);
+              const inCategory = article.category.name.toLowerCase().includes(q);
+              return inTitle || inExcerpt || inTags || inAuthor || inCategory;
+            })
+          );
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }, 200);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query]);
 
   // Handle ESC key
@@ -94,6 +133,11 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               <BookOpen className="w-8 h-8 mx-auto mb-2 text-ink-300" />
               <p className="font-serif text-base text-ink-600">Enter a keyword to explore the editorial collection</p>
               <p className="text-xs font-sans text-ink-400 mt-1">Search through current issue, working papers, and student essays</p>
+            </div>
+          ) : isLoading ? (
+            <div className="py-12 text-center text-ink-400">
+              <div className="w-6 h-6 border-2 border-crimson border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <p className="font-serif text-sm text-ink-600">Searching editorial collection...</p>
             </div>
           ) : results.length === 0 ? (
             <div className="py-10 text-center text-ink-500">

@@ -1,11 +1,19 @@
 import React from "react";
 import SectionHeader from "@/components/editorial/SectionHeader";
 import ArticleCard from "@/components/editorial/ArticleCard";
-import { campusArticles, categories } from "@/data/mockArticles";
+import { campusArticles as defaultCampusArticles, categories } from "@/data/mockArticles";
+import { Article } from "@/lib/types";
 import { GraduationCap, Award, Users } from "lucide-react";
 import { getDeskUrl } from "@/lib/routes";
 
-export default function CampusDesk() {
+interface CampusDeskProps {
+  articles?: Article[];
+}
+
+export default function CampusDesk({ articles: propArticles }: CampusDeskProps = {}) {
+  const campusArticles =
+    propArticles && propArticles.length > 0 ? propArticles : defaultCampusArticles;
+
   return (
     <section id="campus-desk" className="w-full pb-10">
       <SectionHeader

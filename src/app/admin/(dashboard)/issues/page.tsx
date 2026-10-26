@@ -1,15 +1,15 @@
 import React from "react";
 import Link from "next/link";
-import { requireAuth } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { contentRepository } from "@/lib/data";
 import { BookOpen, ExternalLink, Calendar, CheckCircle2, Bookmark } from "lucide-react";
 
 export default async function AdminIssuesPage() {
-  await requireAuth();
+  const session = await requireSession();
 
   const [issues, articles] = await Promise.all([
     contentRepository.getAllIssues(),
-    contentRepository.getAllArticlesAdmin(),
+    contentRepository.getAllArticlesAdmin(session.token),
   ]);
 
   return (

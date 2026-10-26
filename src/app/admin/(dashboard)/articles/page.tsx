@@ -1,15 +1,16 @@
 import React from "react";
 import Link from "next/link";
-import { requireAuth } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { contentRepository } from "@/lib/data";
 import ArticleListTable from "@/components/admin/ArticleListTable";
 import { PlusCircle, FileText } from "lucide-react";
 
 export default async function AdminArticlesPage() {
-  const user = await requireAuth();
+  const session = await requireSession();
+  const user = session.user;
 
   const [articles, categories] = await Promise.all([
-    contentRepository.getAllArticlesAdmin(),
+    contentRepository.getAllArticlesAdmin(session.token),
     contentRepository.getAllCategories(),
   ]);
 

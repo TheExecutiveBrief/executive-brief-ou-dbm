@@ -1,13 +1,12 @@
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
+import SafeImage from "@/components/ui/SafeImage";
 import type { Metadata } from "next";
-import { getAllIssues, allArticles, getArticleBySlug, getAllCategories } from "@/data/mockArticles";
+import { contentRepository } from "@/lib/data";
 import { getIssueUrl, getArticleUrl, getDeskUrl } from "@/lib/routes";
 import {
   ArrowLeft,
   ChevronRight,
-  BookOpen,
   Layers,
   Calendar,
   ArrowUpRight,
@@ -30,9 +29,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ArchivePage() {
-  const issues = getAllIssues();
-  const categories = getAllCategories();
+export default async function ArchivePage() {
+  const [issues, categories, allArticles] = await Promise.all([
+    contentRepository.getAllIssues(),
+    contentRepository.getAllCategories(),
+    contentRepository.getAllArticles(),
+  ]);
 
   return (
     <div className="w-full max-w-masthead mx-auto py-4 space-y-8">
@@ -86,7 +88,9 @@ export default function ArchivePage() {
             const issueUrl = getIssueUrl(issue.slug);
             const issueArticles = allArticles.filter((a) => a.issueSlug === issue.slug);
             const issueArticleCount = issueArticles.length;
-            const coverStory = issue.coverStorySlug ? getArticleBySlug(issue.coverStorySlug) : null;
+            const coverStory = issue.coverStorySlug
+              ? allArticles.find((a) => a.slug === issue.coverStorySlug) || null
+              : null;
 
             return (
               <article
@@ -94,9 +98,8 @@ export default function ArchivePage() {
                 className="bg-paper-ivory border-2 border-ink p-6 sm:p-8 shadow-editorial hover:shadow-editorial-hover transition-shadow flex flex-col lg:flex-row gap-8 items-start"
               >
                 {/* Cover Preview Image */}
-                {issue.coverImage && (
-                  <div className="relative w-full lg:w-80 h-64 lg:h-96 bg-paper-200 border border-editorial-border shrink-0 overflow-hidden">
-                    <Image
+                <div className="relative w-full lg:w-80 h-64 lg:h-96 bg-paper-200 border border-editorial-border shrink-0 overflow-hidden">
+                    <SafeImage
                       src={issue.coverImage}
                       alt={issue.title}
                       fill
@@ -106,8 +109,7 @@ export default function ArchivePage() {
                     <div className="absolute top-3 left-3 bg-crimson text-paper-ivory font-mono text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5">
                       {issue.isCurrent ? "Current Issue" : "Archived Issue"}
                     </div>
-                  </div>
-                )}
+                </div>
 
                 {/* Issue Dossier Details */}
                 <div className="flex-1 flex flex-col justify-between h-full space-y-4">

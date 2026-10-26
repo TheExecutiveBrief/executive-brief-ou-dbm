@@ -38,6 +38,37 @@ export async function POST(request: Request) {
         );
       }
 
+      // Check approval status in local demonstration mode
+      if (demoAccount.user.approvalStatus === "pending") {
+        return NextResponse.json(
+          {
+            error:
+              "Your editorial application is currently under review by the Administrator. Access will be enabled upon approval.",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (demoAccount.user.approvalStatus === "rejected") {
+        return NextResponse.json(
+          {
+            error:
+              "Your editorial access application has been declined. Please contact the Department of Business Management.",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (demoAccount.user.approvalStatus === "suspended") {
+        return NextResponse.json(
+          {
+            error:
+              "Your editorial account is suspended. Please contact the Administrator.",
+          },
+          { status: 403 }
+        );
+      }
+
       session = {
         user: demoAccount.user,
         expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -62,6 +93,7 @@ export async function POST(request: Request) {
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Authentication failed.";
-    return NextResponse.json({ error: message }, { status: 401 });
+    const statusCode = typeof (err as any)?.statusCode === "number" ? (err as any).statusCode : 401;
+    return NextResponse.json({ error: message }, { status: statusCode });
   }
 }

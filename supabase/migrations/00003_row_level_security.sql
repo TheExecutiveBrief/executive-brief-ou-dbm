@@ -29,17 +29,19 @@ begin
 end;
 $$ language plpgsql security definer set search_path = public;
 
-create or replace function public.is_admin()
-returns boolean as $$
-begin
-  return exists (
-    select 1 from public.editorial_profiles
-    where id = auth.uid()
-      and role = 'editor_in_chief'
-      and is_active = true
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.editorial_profiles
+    WHERE id = auth.uid()
+      AND role = 'administrator'
+      AND is_active = true
   );
-end;
-$$ language plpgsql security definer set search_path = public;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public;
 
 create or replace function public.is_editor()
 returns boolean as $$
@@ -66,16 +68,16 @@ end;
 $$ language plpgsql security definer set search_path = public;
 
 -- Revoke dangerous direct execution permissions on internal auth triggers
-revoke execute on function public.current_user_role() from public;
+revoke execute on function public.current_user_role() from public, anon;
 grant execute on function public.current_user_role() to authenticated;
 
-revoke execute on function public.is_admin() from public;
+revoke execute on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
 
-revoke execute on function public.is_editor() from public;
+revoke execute on function public.is_editor() from public, anon;
 grant execute on function public.is_editor() to authenticated;
 
-revoke execute on function public.is_editorial_member() from public;
+revoke execute on function public.is_editorial_member() from public, anon;
 grant execute on function public.is_editorial_member() to authenticated;
 
 -- ==============================================================================
@@ -83,14 +85,20 @@ grant execute on function public.is_editorial_member() to authenticated;
 -- ==============================================================================
 
 -- Users can view their own profile; Editors & Admins can view all team profiles
-create policy "Allow profile read access"
-  on editorial_profiles for select
-  to authenticated
-  using (
-    id = auth.uid() or public.is_editor()
-  );
+DROP POLICY IF EXISTS "Allow profile read access"
+ON editorial_profiles;
+
+CREATE POLICY "Allow profile read access"
+ON editorial_profiles FOR SELECT
+TO authenticated
+USING (
+    id = auth.uid()
+    OR public.is_editor()
+    OR public.is_admin()
+);
 
 -- Profile self-registration on signup (role default to contributor)
+drop policy if exists "Allow self profile insertion" on editorial_profiles;
 create policy "Allow self profile insertion"
   on editorial_profiles for insert
   to authenticated
@@ -100,6 +108,7 @@ create policy "Allow self profile insertion"
 
 -- Users can update their own personal info (avatar, bio, full_name)
 -- Admins can update any profile including role and status
+drop policy if exists "Allow profile update" on editorial_profiles;
 create policy "Allow profile update"
   on editorial_profiles for update
   to authenticated
@@ -112,6 +121,7 @@ create policy "Allow profile update"
   );
 
 -- Only Admins can delete profiles
+drop policy if exists "Allow admin profile deletion" on editorial_profiles;
 create policy "Allow admin profile deletion"
   on editorial_profiles for delete
   to authenticated
@@ -122,12 +132,14 @@ create policy "Allow admin profile deletion"
 -- ==============================================================================
 
 -- Public can view all desks
+drop policy if exists "Allow public category read" on categories;
 create policy "Allow public category read"
   on categories for select
   to anon, authenticated
   using (true);
 
 -- Only Editors & Admins can modify categories
+drop policy if exists "Allow editor category management" on categories;
 create policy "Allow editor category management"
   on categories for all
   to authenticated
@@ -139,12 +151,14 @@ create policy "Allow editor category management"
 -- ==============================================================================
 
 -- Public can view all author and contributor profiles
+drop policy if exists "Allow public author read" on authors;
 create policy "Allow public author read"
   on authors for select
   to anon, authenticated
   using (true);
 
 -- Editors can manage any author profile; Contributors can manage their linked author card
+drop policy if exists "Allow author management" on authors;
 create policy "Allow author management"
   on authors for all
   to authenticated
@@ -156,6 +170,7 @@ create policy "Allow author management"
 -- ==============================================================================
 
 -- Public can read published issues only; Editors can read all issues (including drafts)
+drop policy if exists "Allow issue read" on issues;
 create policy "Allow issue read"
   on issues for select
   to anon, authenticated
@@ -165,6 +180,7 @@ create policy "Allow issue read"
   );
 
 -- Only Editors can create/update/delete issues
+drop policy if exists "Allow editor issue management" on issues;
 create policy "Allow editor issue management"
   on issues for all
   to authenticated
@@ -177,6 +193,7 @@ create policy "Allow editor issue management"
 
 -- Public can view published articles that have passed their publication timestamp
 -- Editors can view all articles; Writers can view their own drafted articles
+drop policy if exists "Allow article read" on articles;
 create policy "Allow article read"
   on articles for select
   to anon, authenticated
@@ -186,6 +203,7 @@ create policy "Allow article read"
   );
 
 -- Editorial members can create articles (Writers must start as draft or in_review)
+drop policy if exists "Allow article insertion" on articles;
 create policy "Allow article insertion"
   on articles for insert
   to authenticated
@@ -198,6 +216,7 @@ create policy "Allow article insertion"
   );
 
 -- Editors can update any article; Contributors can update their own drafts
+drop policy if exists "Allow article update" on articles;
 create policy "Allow article update"
   on articles for update
   to authenticated
@@ -211,6 +230,7 @@ create policy "Allow article update"
   );
 
 -- Only Editors can delete articles
+drop policy if exists "Allow editor article deletion" on articles;
 create policy "Allow editor article deletion"
   on articles for delete
   to authenticated
@@ -220,22 +240,26 @@ create policy "Allow editor article deletion"
 -- 8. POLICIES: MARKET INDICATORS & WIRE BRIEFINGS
 -- ==============================================================================
 
+drop policy if exists "Allow public market indicator read" on market_indicators;
 create policy "Allow public market indicator read"
   on market_indicators for select
   to anon, authenticated
   using (true);
 
+drop policy if exists "Allow editor market indicator management" on market_indicators;
 create policy "Allow editor market indicator management"
   on market_indicators for all
   to authenticated
   using (public.is_editor())
   with check (public.is_editor());
 
+drop policy if exists "Allow public wire briefing read" on wire_briefings;
 create policy "Allow public wire briefing read"
   on wire_briefings for select
   to anon, authenticated
   using (is_active = true or (auth.role() = 'authenticated' and public.is_editor()));
 
+drop policy if exists "Allow editor wire briefing management" on wire_briefings;
 create policy "Allow editor wire briefing management"
   on wire_briefings for all
   to authenticated
@@ -247,17 +271,20 @@ create policy "Allow editor wire briefing management"
 -- ==============================================================================
 
 -- Public visitors may subscribe (INSERT) but can NEVER read subscriber records
+drop policy if exists "Allow public newsletter subscription" on subscribers;
 create policy "Allow public newsletter subscription"
   on subscribers for insert
   to anon, authenticated
   with check (true);
 
 -- ONLY Editors & Admins may view subscriber records
+drop policy if exists "Allow editor subscriber read" on subscribers;
 create policy "Allow editor subscriber read"
   on subscribers for select
   to authenticated
   using (public.is_editor());
 
+drop policy if exists "Allow editor subscriber deletion" on subscribers;
 create policy "Allow editor subscriber deletion"
   on subscribers for delete
   to authenticated
@@ -268,6 +295,7 @@ create policy "Allow editor subscriber deletion"
 -- ==============================================================================
 
 -- Public can read settings flagged is_public = true; Editors can read all settings
+drop policy if exists "Allow site settings read" on site_settings;
 create policy "Allow site settings read"
   on site_settings for select
   to anon, authenticated
@@ -277,6 +305,7 @@ create policy "Allow site settings read"
   );
 
 -- Only Admins can modify global site settings
+drop policy if exists "Allow admin site settings management" on site_settings;
 create policy "Allow admin site settings management"
   on site_settings for all
   to authenticated

@@ -1,10 +1,17 @@
 import React from "react";
 import Link from "next/link";
-import { briefingStripItems } from "@/data/mockArticles";
+import { briefingStripItems as defaultBriefingStripItems } from "@/data/mockArticles";
+import { BriefingStripItem } from "@/lib/data/repository";
 import { Bell, ArrowUpRight } from "lucide-react";
 import { getArticleUrl } from "@/lib/routes";
 
-export default function BriefingStrip() {
+interface BriefingStripProps {
+  items?: BriefingStripItem[];
+}
+
+export default function BriefingStrip({ items: propItems }: BriefingStripProps = {}) {
+  const briefingStripItems =
+    propItems && propItems.length > 0 ? propItems : defaultBriefingStripItems;
   return (
     <div className="w-full my-6 bg-paper-100 border-y-2 border-ink py-3">
       <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-editorial-border/60">

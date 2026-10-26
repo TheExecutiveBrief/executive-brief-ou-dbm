@@ -8,32 +8,39 @@
 create extension if not exists "uuid-ossp";
 
 -- 2. DOMAIN ENUMS
-create type editorial_role as enum (
-  'editor_in_chief',
-  'section_editor',
-  'staff_writer',
-  'contributor',
-  'reader'
-);
-
-create type article_status as enum (
-  'draft',
-  'in_review',
-  'published',
-  'archived'
-);
-
-create type issue_status as enum (
-  'draft',
-  'published',
-  'archived'
-);
-
-create type desk_accent as enum (
-  'crimson',
-  'brass',
-  'forest'
-);
+do $$ begin
+  if not exists (select 1 from pg_type where typname = 'editorial_role') then
+    create type editorial_role as enum (
+      'editor_in_chief',
+      'section_editor',
+      'staff_writer',
+      'contributor',
+      'reader'
+    );
+  end if;
+  if not exists (select 1 from pg_type where typname = 'article_status') then
+    create type article_status as enum (
+      'draft',
+      'in_review',
+      'published',
+      'archived'
+    );
+  end if;
+  if not exists (select 1 from pg_type where typname = 'issue_status') then
+    create type issue_status as enum (
+      'draft',
+      'published',
+      'archived'
+    );
+  end if;
+  if not exists (select 1 from pg_type where typname = 'desk_accent') then
+    create type desk_accent as enum (
+      'crimson',
+      'brass',
+      'forest'
+    );
+  end if;
+end $$;
 
 -- 3. EDITORIAL PROFILES (Linked to Supabase auth.users)
 create table if not exists editorial_profiles (

@@ -1,5 +1,5 @@
 import React from "react";
-import { requireAuth, isSupabaseConfigured } from "@/lib/auth";
+import { requireSession, isSupabaseConfigured } from "@/lib/auth";
 import { contentRepository } from "@/lib/data";
 import {
   Settings,
@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 
 export default async function AdminSettingsPage() {
-  const user = await requireAuth();
+  const session = await requireSession();
+  const user = session.user;
   const configured = isSupabaseConfigured();
 
   const [marketIndicators, briefingItems, currentIssue] = await Promise.all([
@@ -114,8 +115,8 @@ export default async function AdminSettingsPage() {
             </div>
             <div className="flex justify-between py-1">
               <span className="text-ink-500 font-mono">Service Role Key:</span>
-              <span className="font-mono text-ink-800">
-                Secured (Never sent to browser code)
+              <span className="font-mono text-forest font-semibold">
+                Not required (Least-privilege RLS)
               </span>
             </div>
           </div>

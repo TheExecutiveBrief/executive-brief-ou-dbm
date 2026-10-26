@@ -1,14 +1,14 @@
 import React from "react";
-import { requireAuth } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { contentRepository } from "@/lib/data";
 import { Users, Mail, BookOpen, Award } from "lucide-react";
 
 export default async function AdminAuthorsPage() {
-  await requireAuth();
+  const session = await requireSession();
 
   const [authors, articles] = await Promise.all([
     contentRepository.getAllAuthors(),
-    contentRepository.getAllArticlesAdmin(),
+    contentRepository.getAllArticlesAdmin(session.token),
   ]);
 
   return (

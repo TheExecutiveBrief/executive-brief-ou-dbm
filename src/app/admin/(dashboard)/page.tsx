@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { getCurrentUser, permissions, isSupabaseConfigured } from "@/lib/auth";
+import { requireSession, permissions, isSupabaseConfigured } from "@/lib/auth";
 import { contentRepository } from "@/lib/data";
 import {
   FileText,
@@ -19,12 +19,13 @@ import {
 } from "lucide-react";
 
 export default async function AdminDashboardOverview() {
-  const user = await getCurrentUser();
+  const session = await requireSession();
+  const user = session.user;
   const isConfigured = isSupabaseConfigured();
 
   // Load publication data from repository
   const [allArticles, categories, authors, currentIssue] = await Promise.all([
-    contentRepository.getAllArticlesAdmin(),
+    contentRepository.getAllArticlesAdmin(session.token),
     contentRepository.getAllCategories(),
     contentRepository.getAllAuthors(),
     contentRepository.getCurrentIssue(),

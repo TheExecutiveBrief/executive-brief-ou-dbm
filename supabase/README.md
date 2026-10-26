@@ -8,8 +8,8 @@ This directory contains versioned database migrations, a deterministic seed data
 
 The database design provides a relational, typed backend for a student-managed editorial publication with:
 - **Supabase Auth Integration**: Editorial team members authenticate via Supabase Auth and map to `editorial_profiles`.
-- **Role-Based Access Control (RBAC)**: Distinct permissions for `editor_in_chief`, `section_editor`, `staff_writer`, `contributor`, and `reader`.
-- **Editorial Lifecycle**: Articles transition through `draft` -> `in_review` -> `published` -> `archived`.
+- **Role-Based Access Control (RBAC)**: Section Writers submit work; Editorial Editors review and forward; Chief Editors and Administrators can publish. Administrators also manage accounts and settings.
+- **Editorial Lifecycle**: Articles transition through `draft` -> `editorial_review` -> `chief_review` -> `published`, with revision and archive paths.
 - **Archival Issues & Dossiers**: Dedicated volume models (`issues`) with circular link to lead cover stories.
 - **Structured Editorial Content**: Retains complex editorial sections (`body_sections` with pull quotes, callouts, subheadings) and KPIs (`metrics`).
 - **Live Editorial Tickers**: Dedicated tables for `market_indicators` and `wire_briefings`.
@@ -22,9 +22,14 @@ The database design provides a relational, typed backend for a student-managed e
 ```
 supabase/
 ├── migrations/
-│   ├── 00001_core_schema.sql                      # Core tables, enums, constraints, and timestamps
-│   ├── 00002_circular_constraints_and_indexes.sql # Circular FK (issue.cover_story_id), query indexes & triggers
-│   └── 00003_row_level_security.sql               # RLS policies, helper functions & permission gates
+│   ├── 00001_core_schema.sql                      # Core tables and enums
+│   ├── 00002_circular_constraints_and_indexes.sql # Foreign keys, indexes, and timestamps
+│   ├── 00003_row_level_security.sql               # Base RLS policies and helpers
+│   ├── 00004_editorial_enums.sql                  # Workflow role and account status values
+│   ├── 00005_editorial_hierarchy_workflow.sql     # Workflow, audit trail, triggers, and hardened RLS
+│   ├── 00006_harden_workflow_rpc_grants.sql       # Remove anonymous workflow RPC execution
+│   ├── 00007_harden_editorial_function_grants.sql # Restrict helper and trigger function grants
+│   └── 00008_grant_public_rls_helpers.sql          # Allow safe helpers used by public-read RLS policies
 ├── seed.sql                                       # Complete idempotent seed matching src/data/mockArticles.ts
 └── README.md                                      # Setup, migration, RLS verification & bootstrap guide
 ```
@@ -36,23 +41,22 @@ supabase/
 When a Supabase project is provisioned (via [database.new](https://database.new) or Supabase CLI):
 
 ### Option A: Using the Supabase Dashboard SQL Editor
-Run the migrations in sequential order:
-1. Copy and execute `supabase/migrations/00001_core_schema.sql`
-2. Copy and execute `supabase/migrations/00002_circular_constraints_and_indexes.sql`
-3. Copy and execute `supabase/migrations/00003_row_level_security.sql`
-4. Copy and execute `supabase/seed.sql`
+Inspect the target schema and data before applying migrations. For a new, empty project, apply `00001` through `00003`, run `supabase/seed.sql` to create the required baseline content, then apply `00004` through `00008`. Migration `00005` verifies the baseline article inventory and installs an authenticated insert trigger, so seed data must exist before it runs.
+
+For an existing project that already contains the baseline content, apply all pending migrations in order without rerunning the seed.
 
 ### Option B: Using the Supabase CLI
 ```bash
 # Link your local project to your Supabase cloud project
 supabase link --project-ref your-project-ref
 
-# Push migrations to the database
-supabase db push
-
-# Seed the database
-supabase db reset # (or run seed.sql via psql/dashboard)
+# Apply pending migrations to an existing linked project without resetting data
+supabase db push --linked
 ```
+
+Never run `supabase db reset` against a linked or live project. It recreates the database and can delete existing records. `db push` applies only pending migrations; inspect `supabase migration list --linked` and the target schema before deploying.
+
+For a fresh project, use the staged order above so seed content exists before migration `00005`.
 
 ---
 
@@ -125,7 +129,7 @@ rollback;
 
 ---
 
-## 6. Implementation Status (Milestone 4B)
+## 6. Implementation Status
 
 | Feature | Status | Location | Notes |
 | :--- | :--- | :--- | :--- |
@@ -134,4 +138,5 @@ rollback;
 | **Row Level Security (RLS)** | Implemented | `supabase/migrations/00003_row_level_security.sql` | Least-privilege policies & SECURITY DEFINER helpers |
 | **Deterministic Seed Data** | Implemented | `supabase/seed.sql` | 15 articles, 11 authors, 6 categories, 1 issue, tickers |
 | **Repository Abstraction** | Implemented | `src/lib/data/` | `ContentRepository`, `LocalAdapter`, `SupabaseAdapter` |
-| **Live Database Connection** | Not Connected | N/A | Requires user to create project and supply `.env.local` |
+| **Editorial Workflow** | Implemented | `supabase/migrations/00004_editorial_enums.sql` through `supabase/migrations/00008_grant_public_rls_helpers.sql` | Writers submit; Editorial Editors review and forward; Chief Editors and Administrators can publish |
+| **Live Database Connection** | Project linked | Supabase CLI | Inspect remote migration history before deployment; never reset a live project |

@@ -1,10 +1,11 @@
 import React from "react";
-import { requireAuth } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { contentRepository } from "@/lib/data";
 import ArticleEditorForm from "@/components/admin/ArticleEditorForm";
 
 export default async function AdminNewArticlePage() {
-  const user = await requireAuth();
+  const session = await requireSession();
+  const user = session.user;
 
   const [categories, authors] = await Promise.all([
     contentRepository.getAllCategories(),

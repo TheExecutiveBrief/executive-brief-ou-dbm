@@ -1,11 +1,19 @@
 import React from "react";
 import SectionHeader from "@/components/editorial/SectionHeader";
 import ArticleCard from "@/components/editorial/ArticleCard";
-import { voicesArticles, categories } from "@/data/mockArticles";
+import { voicesArticles as defaultVoicesArticles, categories } from "@/data/mockArticles";
+import { Article } from "@/lib/types";
 import { MessageSquareQuote } from "lucide-react";
 import { getDeskUrl } from "@/lib/routes";
 
-export default function VoicesDesk() {
+interface VoicesDeskProps {
+  articles?: Article[];
+}
+
+export default function VoicesDesk({ articles: propArticles }: VoicesDeskProps = {}) {
+  const voicesArticles =
+    propArticles && propArticles.length > 0 ? propArticles : defaultVoicesArticles;
+
   return (
     <section id="voices-desk" className="w-full pb-10">
       <SectionHeader

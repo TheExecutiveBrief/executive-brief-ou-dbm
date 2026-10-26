@@ -217,9 +217,13 @@ runTest(5, "SiteShell cleanly isolates /admin routes from public masthead & foot
     path.join(ROOT_DIR, "src/components/layout/SiteShell.tsx"),
     "utf-8"
   );
+  const layoutCode = fs.readFileSync(
+    path.join(ROOT_DIR, "src/app/layout.tsx"),
+    "utf-8"
+  );
   assert.strictEqual(shellCode.includes('pathname?.startsWith("/admin")'), true);
-  assert.strictEqual(shellCode.includes("<TopUtilityBar />"), true);
-  assert.strictEqual(shellCode.includes("<Footer />"), true);
+  assert.strictEqual(layoutCode.includes("<TopUtilityBar />"), true);
+  assert.strictEqual(layoutCode.includes("<Footer />"), true);
 });
 
 console.log("\n=================================================================");

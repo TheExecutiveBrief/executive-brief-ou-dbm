@@ -1,5 +1,5 @@
 import React from "react";
-import Image from "next/image";
+import SafeImage from "@/components/ui/SafeImage";
 import Link from "next/link";
 import { Article } from "@/lib/types";
 import { Clock, ArrowUpRight } from "lucide-react";
@@ -42,7 +42,7 @@ export default function ArticleCard({
           {/* Author Portrait & Bio Header */}
           <div className="flex items-center gap-3 mb-4">
             <div className="relative w-12 h-12 rounded-full overflow-hidden border border-editorial-border shrink-0">
-              <Image
+              <SafeImage
                 src={article.author.avatar}
                 alt={article.author.name}
                 fill
@@ -92,12 +92,12 @@ export default function ArticleCard({
       <article
         className="flex flex-col sm:flex-row gap-5 p-4 bg-paper-ivory border border-editorial-border hover:border-ink-500 transition-all duration-200 group shadow-editorial hover:shadow-editorial-hover"
       >
-        {showImage && article.coverImage && (
+        {showImage && (
           <Link
             href={articleUrl}
             className="relative w-full sm:w-48 md:w-56 h-44 sm:h-auto shrink-0 overflow-hidden bg-paper-200 block"
           >
-            <Image
+            <SafeImage
               src={article.coverImage}
               alt={article.title}
               fill
@@ -223,12 +223,12 @@ export default function ArticleCard({
       className="flex flex-col justify-between bg-paper-ivory border border-editorial-border hover:border-ink-500 transition-all duration-200 group shadow-editorial hover:shadow-editorial-hover"
     >
       <div>
-        {showImage && article.coverImage && (
+        {showImage && (
           <Link
             href={articleUrl}
             className="relative w-full h-48 sm:h-52 overflow-hidden bg-paper-200 block"
           >
-            <Image
+            <SafeImage
               src={article.coverImage}
               alt={article.title}
               fill
@@ -280,7 +280,7 @@ export default function ArticleCard({
       <div className="px-5 py-3.5 bg-paper-50 border-t border-editorial-border flex items-center justify-between text-xs">
         <div className="flex items-center gap-2">
           <div className="relative w-6 h-6 rounded-full overflow-hidden border border-editorial-border shrink-0">
-            <Image
+            <SafeImage
               src={article.author.avatar}
               alt={article.author.name}
               fill

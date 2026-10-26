@@ -1,26 +1,19 @@
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import {
-  getAllIssues,
-  getIssueBySlug,
-  getArticlesByIssue,
-  getArticleBySlug,
-} from "@/data/mockArticles";
-import { getArticleUrl, getArchiveUrl, getIssueUrl } from "@/lib/routes";
+import { contentRepository } from "@/lib/data";
+import { getArchiveUrl, getIssueUrl } from "@/lib/routes";
 import ArticleCard from "@/components/editorial/ArticleCard";
 import IssueArticlesList from "@/components/archive/IssueArticlesList";
-import { ArrowLeft, ChevronRight, Layers, Calendar, BookOpen, Clock, ArrowUpRight } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { ArrowLeft, ChevronRight, Calendar, BookOpen } from "lucide-react";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
 export async function generateStaticParams() {
-  const issues = getAllIssues();
+  const issues = await contentRepository.getAllIssues();
   return issues.map((issue) => ({
     slug: issue.slug,
   }));
@@ -30,7 +23,7 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const issue = getIssueBySlug(slug);
+  const issue = await contentRepository.getIssueBySlug(slug);
 
   if (!issue) {
     return {
@@ -55,16 +48,20 @@ export async function generateMetadata({
 
 export default async function IssueDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const issue = getIssueBySlug(slug);
+  const issue = await contentRepository.getIssueBySlug(slug);
 
   if (!issue) {
     notFound();
   }
 
-  const articles = getArticlesByIssue(issue.slug);
-  const coverStory = issue.coverStorySlug
-    ? getArticleBySlug(issue.coverStorySlug)
-    : articles[0];
+  const articles = await contentRepository.getArticlesByIssue(issue.slug);
+  let coverStory = null;
+  if (issue.coverStorySlug) {
+    coverStory = await contentRepository.getArticleBySlug(issue.coverStorySlug);
+  }
+  if (!coverStory && articles.length > 0) {
+    coverStory = articles[0];
+  }
   const otherArticles = articles.filter((a) => a.slug !== coverStory?.slug);
 
   return (

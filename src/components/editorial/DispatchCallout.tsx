@@ -6,11 +6,37 @@ import { Mail, Check, ShieldCheck, Sparkles } from "lucide-react";
 export default function DispatchCallout() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
+    if (!email.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), source: "homepage_callout" }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Subscription request failed.");
+      }
+
+      setSuccessMessage(data.message || "Subscription Confirmed");
       setSubmitted(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to subscribe. Please try again.";
+      setErrorMessage(msg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -38,28 +64,35 @@ export default function DispatchCallout() {
           <div className="p-6 bg-forest-light border border-forest max-w-md mx-auto text-forest-900 font-serif">
             <div className="flex items-center justify-center gap-2 text-forest mb-2">
               <Check className="w-5 h-5" />
-              <span className="font-bold text-base">Subscription Confirmed</span>
+              <span className="font-bold text-base">{successMessage || "Subscription Confirmed"}</span>
             </div>
             <p className="text-xs font-sans text-forest-800">
               Welcome to The Executive Brief. You will receive our next briefing dispatch directly at <strong className="font-mono">{email}</strong>.
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="max-w-md mx-auto flex flex-col sm:flex-row gap-2">
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your institutional or corporate email"
-              className="flex-1 px-4 py-3 bg-paper-50 border border-editorial-border font-sans text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-crimson focus:ring-1 focus:ring-crimson"
-            />
-            <button
-              type="submit"
-              className="px-6 py-3 bg-crimson text-paper-ivory font-serif font-bold text-sm uppercase tracking-wider hover:bg-crimson-800 transition-colors shrink-0"
-            >
-              Subscribe
-            </button>
+          <form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="email"
+                required
+                disabled={isSubmitting}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your institutional or corporate email"
+                className="flex-1 px-4 py-3 bg-paper-50 border border-editorial-border font-sans text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-crimson focus:ring-1 focus:ring-crimson disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-3 bg-crimson text-paper-ivory font-serif font-bold text-sm uppercase tracking-wider hover:bg-crimson-800 transition-colors shrink-0 disabled:opacity-50"
+              >
+                {isSubmitting ? "Subscribing..." : "Subscribe"}
+              </button>
+            </div>
+            {errorMessage && (
+              <p className="text-xs text-crimson font-sans text-left">{errorMessage}</p>
+            )}
           </form>
         )}
 

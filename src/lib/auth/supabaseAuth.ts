@@ -1,16 +1,28 @@
+
 import { EditorialSession, EditorialUser, EditorialRole } from "./types";
 
-/**
- * Checks whether valid, non-placeholder Supabase credentials exist in the environment.
- */
+const VALID_ROLES: EditorialRole[] = [
+  "administrator",
+  "editor_in_chief",
+  "section_editor",
+  "section_writer",
+  "staff_writer",
+  "contributor",
+  "reader",
+];
+
 export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) return false;
-  if (url.includes("your-project-id") || key.includes("your-anon-public-key")) {
+  if (
+    url.includes("your-project-id") ||
+    key.includes("your-anon-public-key")
+  ) {
     return false;
   }
+
   return true;
 }
 
@@ -29,20 +41,17 @@ interface SupabaseAuthTokenResponse {
   };
 }
 
-interface SupabaseProfileRow {
+export interface SupabaseProfileRow {
   id: string;
   email: string;
   full_name: string;
   role: EditorialRole;
+  approval_status?: "pending" | "approved" | "rejected" | "suspended";
   avatar_url?: string;
   bio?: string;
   is_active: boolean;
 }
 
-/**
- * Authenticates with Supabase Auth via standard PostgREST / GoTrue REST endpoints.
- * Zero external client SDK dependency required.
- */
 export async function signInWithSupabase(
   email: string,
   password: string
@@ -51,83 +60,176 @@ export async function signInWithSupabase(
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
-    throw new Error("Supabase is not configured. Missing API URL or Anon Key.");
+    throw new Error("Supabase is not configured.");
   }
 
-  // 1. Authenticate with Supabase Auth (GoTrue endpoint)
-  const authResponse = await fetch(`${url}/auth/v1/token?grant_type=password`, {
-    method: "POST",
-    headers: {
-      apikey: anonKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email, password }),
-  });
+  const authResponse = await fetch(
+    `${url}/auth/v1/token?grant_type=password`,
+    {
+      method: "POST",
+      headers: {
+        apikey: anonKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+      cache: "no-store",
+    }
+  );
 
   if (!authResponse.ok) {
-    const errorBody = await authResponse.json().catch(() => ({}));
-    throw new Error(
-      errorBody.error_description ||
-        errorBody.msg ||
-        `Authentication failed with status ${authResponse.status}`
-    );
+    let errorDetail = "Invalid email or password.";
+    try {
+      const errJson = await authResponse.json();
+      if (errJson?.error_description) {
+        errorDetail = errJson.error_description;
+      } else if (errJson?.msg) {
+        errorDetail = errJson.msg;
+      } else if (errJson?.message) {
+        errorDetail = errJson.message;
+      }
+    } catch {
+      // fallback
+    }
+    const err = new Error(errorDetail);
+    (err as any).statusCode = authResponse.status;
+    (err as any).type = "AUTH_CREDENTIALS";
+    throw err;
   }
 
   const tokenData: SupabaseAuthTokenResponse = await authResponse.json();
-  const accessToken = tokenData.access_token;
   const authUser = tokenData.user;
 
-  // 2. Fetch the assigned role from the public.editorial_profiles table
-  let role: EditorialRole = "contributor";
-  let fullName = authUser.user_metadata?.full_name || authUser.email.split("@")[0];
-  let avatarUrl = authUser.user_metadata?.avatar_url;
+  if (
+    !tokenData.access_token ||
+    !authUser?.id ||
+    !authUser.email
+  ) {
+    const err = new Error("Supabase returned an invalid authentication response.");
+    (err as any).statusCode = 502;
+    throw err;
+  }
 
+  const profileResponse = await fetch(
+    `${url}/rest/v1/editorial_profiles?id=eq.${encodeURIComponent(
+      authUser.id
+    )}&select=id,email,full_name,role,avatar_url,bio,is_active&limit=1`,
+    {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${tokenData.access_token}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!profileResponse.ok) {
+    let errorDetail = "Your editorial profile could not be verified.";
+    try {
+      const errJson = await profileResponse.json();
+      if (errJson?.message) errorDetail = errJson.message;
+    } catch {
+      // fallback
+    }
+    const err = new Error(errorDetail);
+    (err as any).statusCode = 502;
+    (err as any).type = "PROFILE_LOOKUP";
+    throw err;
+  }
+
+  const profiles: SupabaseProfileRow[] = await profileResponse.json();
+  const profile = profiles[0];
+
+  if (!profile || profile.id !== authUser.id) {
+    const err = new Error(
+      "No active editorial profile was found for this account. Please contact an administrator."
+    );
+    (err as any).statusCode = 403;
+    (err as any).type = "PROFILE_MISSING";
+    throw err;
+  }
+
+  // Validate the account against the current live database schema.
+  if (!profile.is_active) {
+    const err = new Error(
+      "Your editorial account is deactivated. Please contact the administrator."
+    );
+    (err as any).statusCode = 403;
+    (err as any).type = "ACCOUNT_DEACTIVATED";
+    throw err;
+  }
+
+  // Check approval_status if present in database (Milestone 5B)
+  if (profile.approval_status && profile.approval_status !== "approved") {
+    let msg = "Your editorial account is awaiting administrator approval.";
+    if (profile.approval_status === "rejected") {
+      msg = "Your editorial application has been declined. Please contact the administrator.";
+    } else if (profile.approval_status === "suspended") {
+      msg = "Your editorial account has been suspended. Please contact the administrator.";
+    }
+    const err = new Error(msg);
+    (err as any).statusCode = 403;
+    (err as any).type = "ACCOUNT_NOT_APPROVED";
+    throw err;
+  }
+
+  if (!VALID_ROLES.includes(profile.role)) {
+    const err = new Error(
+      "Your editorial role is invalid. Please contact the administrator."
+    );
+    (err as any).statusCode = 403;
+    (err as any).type = "ROLE_INVALID";
+    throw err;
+  }
+
+  // Fetch assigned sections if available
+  let assignedSections: string[] = [];
   try {
-    const profileResponse = await fetch(
-      `${url}/rest/v1/editorial_profiles?id=eq.${encodeURIComponent(authUser.id)}&limit=1`,
+    const secRes = await fetch(
+      `${url}/rest/v1/section_assignments?user_id=eq.${encodeURIComponent(authUser.id)}&select=category_id`,
       {
         headers: {
           apikey: anonKey,
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
+          Authorization: `Bearer ${tokenData.access_token}`,
         },
+        cache: "no-store",
       }
     );
-
-    if (profileResponse.ok) {
-      const profiles: SupabaseProfileRow[] = await profileResponse.json();
-      if (profiles && profiles.length > 0) {
-        role = profiles[0].role;
-        fullName = profiles[0].full_name || fullName;
-        avatarUrl = profiles[0].avatar_url || avatarUrl;
-      }
+    if (secRes.ok) {
+      const secRows: Array<{ category_id: string }> = await secRes.json();
+      assignedSections = secRows.map((r) => r.category_id);
     }
-  } catch (err) {
-    console.warn("Could not fetch editorial profile, defaulting to contributor role:", err);
+  } catch {
+    // Non-blocking fallback
   }
 
   const user: EditorialUser = {
     id: authUser.id,
-    email: authUser.email,
-    fullName,
-    role,
-    avatarUrl,
+    email: profile.email || authUser.email,
+    fullName:
+      profile.full_name ||
+      authUser.user_metadata?.full_name ||
+      authUser.email.split("@")[0],
+    role: profile.role,
+    approvalStatus: "approved",
+    assignedSections,
+    avatarUrl:
+      profile.avatar_url || authUser.user_metadata?.avatar_url,
+    bio: profile.bio,
     isSimulated: false,
   };
 
-  const expiresAt = Date.now() + (tokenData.expires_in || 3600) * 1000;
-
   return {
     user,
-    token: accessToken,
-    expiresAt,
+    token: tokenData.access_token,
+    expiresAt:
+      Date.now() + Math.max(0, tokenData.expires_in || 3600) * 1000,
   };
 }
 
-/**
- * Signs out from Supabase by invalidating the session token.
- */
-export async function signOutWithSupabase(accessToken: string): Promise<void> {
+export async function signOutWithSupabase(
+  accessToken: string
+): Promise<void> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -140,8 +242,47 @@ export async function signOutWithSupabase(accessToken: string): Promise<void> {
         apikey: anonKey,
         Authorization: `Bearer ${accessToken}`,
       },
+      cache: "no-store",
     });
-  } catch (err) {
-    console.warn("Supabase sign out request failed:", err);
+  } catch {
+    // Local session deletion must still be allowed if the network is unavailable.
   }
 }
+
+/**
+ * Revalidates the live profile against Supabase.
+ * Returns null if the user cannot be verified, is deleted, or network fails.
+ */
+export async function getLiveEditorialProfile(
+  userId: string,
+  accessToken: string
+): Promise<SupabaseProfileRow | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey || !userId || !accessToken) return null;
+
+  try {
+    const profileResponse = await fetch(
+      `${url}/rest/v1/editorial_profiles?id=eq.${encodeURIComponent(
+        userId
+      )}&select=*&limit=1`,
+      {
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (!profileResponse.ok) return null;
+
+    const profiles: SupabaseProfileRow[] = await profileResponse.json();
+    return profiles[0] || null;
+  } catch {
+    return null;
+  }
+}
+

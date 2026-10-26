@@ -39,6 +39,28 @@ export interface ArticleSection {
   };
 }
 
+export type ArticleWorkflowStage =
+  | "draft"
+  | "editorial_review"
+  | "chief_review"
+  | "revision_requested"
+  | "published"
+  | "archived";
+
+export interface ArticleWorkflowAuditEntry {
+  id: string;
+  articleId: string;
+  actorId: string;
+  actorName?: string;
+  actorRole?: string;
+  action: string;
+  fromStage: string;
+  toStage: string;
+  revisionReason?: string;
+  notes?: string;
+  createdAt: string;
+}
+
 export interface Article {
   id: string;
   slug: string;
@@ -57,6 +79,15 @@ export interface Article {
   edition?: string;
   issueSlug?: string;
   status?: "draft" | "in_review" | "published" | "archived";
+  workflowStage?: ArticleWorkflowStage;
+  createdBy?: string;
+  updatedBy?: string;
+  currentReviewerId?: string;
+  lastRevisionReason?: string;
+  submittedAt?: string;
+  editorialReviewedAt?: string;
+  editorialReviewedBy?: string;
+  publishedBy?: string;
   tags: string[];
   keyTakeaways?: string[];
   metrics?: {

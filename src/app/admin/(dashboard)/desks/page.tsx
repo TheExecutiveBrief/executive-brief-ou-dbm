@@ -1,15 +1,15 @@
 import React from "react";
 import Link from "next/link";
-import { requireAuth } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { contentRepository } from "@/lib/data";
 import { Compass, ExternalLink, BookOpen, Layers } from "lucide-react";
 
 export default async function AdminDesksPage() {
-  await requireAuth();
+  const session = await requireSession();
 
   const [categories, articles] = await Promise.all([
     contentRepository.getAllCategories(),
-    contentRepository.getAllArticlesAdmin(),
+    contentRepository.getAllArticlesAdmin(session.token),
   ]);
 
   return (

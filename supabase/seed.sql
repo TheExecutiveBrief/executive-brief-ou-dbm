@@ -470,13 +470,19 @@ on conflict (symbol) do update set
   display_order = excluded.display_order;
 
 -- 7. EXECUTIVE WIRE BRIEFINGS
-insert into wire_briefings (label, headline, article_slug, time_label, is_active, display_order)
+insert into wire_briefings (id, label, headline, article_slug, time_label, is_active, display_order)
 values
-  ('REGULATORY DISPATCH', 'RBI signals measured stance on shadow banking liquidity norms; impact on Telangana NBFC credit spreads expected minimal.', 'fintech-credit-underwriting-msme-tier-2-cities', '2h ago', true, 1),
-  ('CAMPUS ARCHIVE', 'OU DBM marks 64 years of management excellence: Alumni Foundation announces ₹5 Crore endowment for faculty research fellowships.', 'sixty-four-years-of-dbm-legacy-to-frontier', '4h ago', true, 2),
-  ('GLOBAL EXPANSION', 'Hyderabad aerospace corridor bags Tier-1 avionics contract for European civil aviation consortium.', 'green-hydrogen-industrial-corridors-telangana', '6h ago', true, 3),
-  ('CASE COMPETITION', 'Team ''Chanakya'' from OU DBM qualifies for the National Finals of the National Business Strategy Olympiad.', 'from-engineering-to-boardroom-the-mba-inflection', '8h ago', true, 4)
-on conflict do nothing;
+  ('00000000-0000-0000-0005-000000000001', 'REGULATORY DISPATCH', 'RBI signals measured stance on shadow banking liquidity norms; impact on Telangana NBFC credit spreads expected minimal.', 'fintech-credit-underwriting-msme-tier-2-cities', '2h ago', true, 1),
+  ('00000000-0000-0000-0005-000000000002', 'CAMPUS ARCHIVE', 'OU DBM marks 64 years of management excellence: Alumni Foundation announces ₹5 Crore endowment for faculty research fellowships.', 'sixty-four-years-of-dbm-legacy-to-frontier', '4h ago', true, 2),
+  ('00000000-0000-0000-0005-000000000003', 'GLOBAL EXPANSION', 'Hyderabad aerospace corridor bags Tier-1 avionics contract for European civil aviation consortium.', 'green-hydrogen-industrial-corridors-telangana', '6h ago', true, 3),
+  ('00000000-0000-0000-0005-000000000004', 'CASE COMPETITION', 'Team ''Chanakya'' from OU DBM qualifies for the National Finals of the National Business Strategy Olympiad.', 'from-engineering-to-boardroom-the-mba-inflection', '8h ago', true, 4)
+on conflict (id) do update set
+  label = excluded.label,
+  headline = excluded.headline,
+  article_slug = excluded.article_slug,
+  time_label = excluded.time_label,
+  is_active = excluded.is_active,
+  display_order = excluded.display_order;
 
 -- 8. INITIAL SITE SETTINGS
 insert into site_settings (key, value, description, is_public)

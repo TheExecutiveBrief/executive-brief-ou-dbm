@@ -2,11 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import {
-  getAllCategories,
-  getCategoryBySlug,
-  getArticlesByDesk,
-} from "@/data/mockArticles";
+import { contentRepository } from "@/lib/data";
 import { getDeskUrl, getArchiveUrl } from "@/lib/routes";
 import DeskArticlesGrid from "@/components/desk/DeskArticlesGrid";
 import { ArrowLeft, ChevronRight, Compass, BookOpen, Layers } from "lucide-react";
@@ -16,7 +12,7 @@ interface PageProps {
 }
 
 export async function generateStaticParams() {
-  const categories = getAllCategories();
+  const categories = await contentRepository.getAllCategories();
   return categories.map((cat) => ({
     slug: cat.slug,
   }));
@@ -26,7 +22,7 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const category = getCategoryBySlug(slug);
+  const category = await contentRepository.getCategoryBySlug(slug);
 
   if (!category) {
     return {
@@ -59,14 +55,17 @@ export async function generateMetadata({
 
 export default async function DeskPage({ params }: PageProps) {
   const { slug } = await params;
-  const category = getCategoryBySlug(slug);
+  const category = await contentRepository.getCategoryBySlug(slug);
 
   if (!category) {
     notFound();
   }
 
-  const articles = getArticlesByDesk(category.slug);
-  const otherCategories = getAllCategories().filter((c) => c.slug !== category.slug);
+  const [articles, allCategories] = await Promise.all([
+    contentRepository.getArticlesByDesk(category.slug),
+    contentRepository.getAllCategories(),
+  ]);
+  const otherCategories = allCategories.filter((c) => c.slug !== category.slug);
 
   return (
     <div className="w-full max-w-masthead mx-auto py-4 space-y-8">
@@ -153,7 +152,7 @@ export default async function DeskPage({ params }: PageProps) {
             articles={articles}
             deskName={category.name}
             categorySlug={category.slug}
-            allCategories={getAllCategories()}
+            allCategories={allCategories}
           />
         )}
       </main>

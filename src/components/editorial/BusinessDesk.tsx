@@ -1,13 +1,29 @@
 import React from "react";
 import SectionHeader from "@/components/editorial/SectionHeader";
 import ArticleCard from "@/components/editorial/ArticleCard";
-import { businessArticles, categories } from "@/data/mockArticles";
+import { businessArticles as defaultBusinessArticles, categories } from "@/data/mockArticles";
+import { Article, MarketIndicator } from "@/lib/types";
 import { BarChart3 } from "lucide-react";
 import { getDeskUrl } from "@/lib/routes";
 
-export default function BusinessDesk() {
+interface BusinessDeskProps {
+  articles?: Article[];
+  marketIndicators?: MarketIndicator[];
+}
+
+export default function BusinessDesk({
+  articles: propArticles,
+  marketIndicators,
+}: BusinessDeskProps = {}) {
+  const businessArticles =
+    propArticles && propArticles.length > 0 ? propArticles : defaultBusinessArticles;
   const leadArticle = businessArticles[0];
   const sideArticles = businessArticles.slice(1);
+
+  const displayIndicators =
+    marketIndicators && marketIndicators.length > 0
+      ? marketIndicators.slice(0, 4)
+      : null;
 
   return (
     <section id="business-desk" className="w-full pb-10">
@@ -46,40 +62,70 @@ export default function BusinessDesk() {
               Tracking key economic benchmarks across Telangana&apos;s corporate clusters.
             </p>
 
-            <div className="space-y-3 font-mono text-xs">
-              <div className="flex items-center justify-between p-2.5 bg-paper-50 border border-editorial-border/60">
-                <div>
-                  <div className="font-semibold text-ink-900">Telangana IT Exports</div>
-                  <div className="text-[10px] text-ink-500">FY 2025-26 Estimate</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold text-ink-950">₹2.68 Lakh Cr</div>
-                  <div className="text-[10px] text-forest font-semibold">+17.8% YoY</div>
-                </div>
+            {displayIndicators ? (
+              <div className="space-y-3 font-mono text-xs">
+                {displayIndicators.map((item) => (
+                  <div
+                    key={item.symbol || item.name}
+                    className="flex items-center justify-between p-2.5 bg-paper-50 border border-editorial-border/60"
+                  >
+                    <div>
+                      <div className="font-semibold text-ink-900">{item.name}</div>
+                      <div className="text-[10px] text-ink-500">
+                        {item.symbol}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-ink-950">{item.value}</div>
+                      {item.change && (
+                        <div
+                          className={`text-[10px] font-semibold ${
+                            item.isPositive ? "text-forest" : "text-crimson"
+                          }`}
+                        >
+                          {item.change}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <div className="space-y-3 font-mono text-xs">
+                <div className="flex items-center justify-between p-2.5 bg-paper-50 border border-editorial-border/60">
+                  <div>
+                    <div className="font-semibold text-ink-900">Telangana IT Exports</div>
+                    <div className="text-[10px] text-ink-500">FY 2025-26 Estimate</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-ink-950">₹2.68 Lakh Cr</div>
+                    <div className="text-[10px] text-forest font-semibold">+17.8% YoY</div>
+                  </div>
+                </div>
 
-              <div className="flex items-center justify-between p-2.5 bg-paper-50 border border-editorial-border/60">
-                <div>
-                  <div className="font-semibold text-ink-900">Genome Valley FDI</div>
-                  <div className="text-[10px] text-ink-500">Trailing 12 Months</div>
+                <div className="flex items-center justify-between p-2.5 bg-paper-50 border border-editorial-border/60">
+                  <div>
+                    <div className="font-semibold text-ink-900">Genome Valley FDI</div>
+                    <div className="text-[10px] text-ink-500">Trailing 12 Months</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-ink-950">$2.4 Billion</div>
+                    <div className="text-[10px] text-forest font-semibold">+22.1% YoY</div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-bold text-ink-950">$2.4 Billion</div>
-                  <div className="text-[10px] text-forest font-semibold">+22.1% YoY</div>
-                </div>
-              </div>
 
-              <div className="flex items-center justify-between p-2.5 bg-paper-50 border border-editorial-border/60">
-                <div>
-                  <div className="font-semibold text-ink-900">Commercial Grade-A Leasing</div>
-                  <div className="text-[10px] text-ink-500">Hyderabad Metro Area</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold text-ink-950">11.4M sq.ft</div>
-                  <div className="text-[10px] text-forest font-semibold">Rank #1 in India</div>
+                <div className="flex items-center justify-between p-2.5 bg-paper-50 border border-editorial-border/60">
+                  <div>
+                    <div className="font-semibold text-ink-900">Commercial Grade-A Leasing</div>
+                    <div className="text-[10px] text-ink-500">Hyderabad Metro Area</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-ink-950">11.4M sq.ft</div>
+                    <div className="text-[10px] text-forest font-semibold">Rank #1 in India</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="mt-4 pt-3 border-t border-editorial-border/60 text-center">
               <span className="text-[11px] font-mono text-ink-500">

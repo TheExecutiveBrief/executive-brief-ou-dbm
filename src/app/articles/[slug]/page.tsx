@@ -1,14 +1,9 @@
 import React from "react";
-import Image from "next/image";
+import SafeImage from "@/components/ui/SafeImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import {
-  allArticles,
-  getArticleBySlug,
-  getRelatedArticles,
-  currentIssue,
-} from "@/data/mockArticles";
+import { contentRepository } from "@/lib/data";
 import { formatDate } from "@/lib/utils";
 import { getArticleUrl, getCategoryAnchor, getIssueUrl } from "@/lib/routes";
 import ReadingProgressBar from "@/components/article/ReadingProgressBar";
@@ -32,7 +27,8 @@ interface PageProps {
 }
 
 export async function generateStaticParams() {
-  return allArticles.map((article) => ({
+  const articles = await contentRepository.getAllArticles();
+  return articles.map((article) => ({
     slug: article.slug,
   }));
 }
@@ -41,7 +37,7 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const article = getArticleBySlug(slug);
+  const article = await contentRepository.getArticleBySlug(slug);
 
   if (!article) {
     return {
@@ -90,13 +86,16 @@ export async function generateMetadata({
 
 export default async function ArticleDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const article = getArticleBySlug(slug);
+  const article = await contentRepository.getArticleBySlug(slug);
 
   if (!article) {
     notFound();
   }
 
-  const relatedArticles = getRelatedArticles(article.slug, 3);
+  const [relatedArticles, currentIssue] = await Promise.all([
+    contentRepository.getRelatedArticles(article.slug, 3),
+    contentRepository.getCurrentIssue(),
+  ]);
   const categoryAnchor = getCategoryAnchor(article.category.slug);
 
   return (
@@ -141,11 +140,11 @@ export default async function ArticleDetailPage({ params }: PageProps) {
                 href={getIssueUrl(article.issueSlug)}
                 className="font-mono text-xs text-ink-500 hover:text-crimson transition-colors"
               >
-                {currentIssue.volume} · {currentIssue.issueNumber}
+                {currentIssue ? `${currentIssue.volume} · ${currentIssue.issueNumber}` : "Active Volume"}
               </Link>
             ) : (
               <span className="font-mono text-xs text-ink-500">
-                {currentIssue.volume} · {currentIssue.issueNumber}
+                {currentIssue ? `${currentIssue.volume} · ${currentIssue.issueNumber}` : "Active Volume"}
               </span>
             )}
           </div>
@@ -167,7 +166,7 @@ export default async function ArticleDetailPage({ params }: PageProps) {
             {/* Author info */}
             <div className="flex items-center gap-3">
               <div className="relative w-12 h-12 rounded-full overflow-hidden border border-editorial-border shrink-0">
-                <Image
+                <SafeImage
                   src={article.author.avatar}
                   alt={article.author.name}
                   fill
@@ -207,10 +206,9 @@ export default async function ArticleDetailPage({ params }: PageProps) {
         </header>
 
         {/* Hero Image */}
-        {article.coverImage && (
-          <figure className="mb-8">
+        <figure className="mb-8">
             <div className="relative w-full h-[260px] sm:h-[380px] md:h-[460px] bg-paper-200 border border-editorial-border overflow-hidden">
-              <Image
+              <SafeImage
                 src={article.coverImage}
                 alt={article.title}
                 fill
@@ -224,8 +222,7 @@ export default async function ArticleDetailPage({ params }: PageProps) {
                 {article.imageCaption}
               </figcaption>
             )}
-          </figure>
-        )}
+        </figure>
 
         {/* Executive Key Takeaways (if present) */}
         {article.keyTakeaways && article.keyTakeaways.length > 0 && (
@@ -384,7 +381,7 @@ export default async function ArticleDetailPage({ params }: PageProps) {
         <section className="mt-10 p-6 bg-paper-ivory border-2 border-editorial-border shadow-editorial">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="relative w-16 h-16 rounded-full overflow-hidden border border-editorial-border shrink-0">
-              <Image
+              <SafeImage
                 src={article.author.avatar}
                 alt={article.author.name}
                 fill

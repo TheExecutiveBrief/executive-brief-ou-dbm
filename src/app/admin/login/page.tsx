@@ -20,12 +20,23 @@ function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get("redirect") || "/admin";
+  const urlError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (urlError === "account_suspended") {
+      setError("Your account has been deactivated or is awaiting administrator approval. Please contact an administrator.");
+    } else if (urlError === "unauthorized_role") {
+      setError("You do not have the required editorial permissions to access that desk.");
+    } else if (urlError === "unauthorized_admin") {
+      setError("Administrative privileges are required to access that section.");
+    }
+  }, [urlError]);
 
   useEffect(() => {
     // Check whether live Supabase is configured
@@ -174,95 +185,141 @@ function LoginFormContent() {
             </button>
           </form>
 
-          {/* Local Demonstration Mode Card */}
-          {!isConfigured && (
-            <div className="mt-8 pt-6 border-t border-editorial-border">
-              <div className="flex items-center gap-2 mb-3">
-                <Terminal className="w-4 h-4 text-brass" />
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-ink-800">
-                  Local Demonstration Mode
-                </span>
-              </div>
-              <p className="text-[11px] text-ink-600 mb-3 leading-relaxed">
-                Supabase credentials are not currently configured. Click any persona below to
-                auto-fill credentials and test role permissions:
-              </p>
+          {/* Editorial Application Link */}
+          <div className="mt-4 pt-4 border-t border-editorial-border text-center">
+            <Link
+              href="/admin/apply"
+              className="text-xs font-mono text-crimson hover:underline font-semibold flex items-center justify-center gap-1.5"
+            >
+              <span>Prospective contributor? Apply for Editorial Access</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
 
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo("editor@oudbm.ac.in", "ExecutiveBrief2026!")}
-                  className="w-full text-left p-2.5 rounded border border-editorial-border hover:border-crimson hover:bg-paper-100 transition-colors flex items-center justify-between text-xs group"
-                >
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-ink-900">Dr. V. Sudha</span>
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-crimson-light text-crimson-900 font-bold">
-                        Editor-in-Chief
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-ink-500">
-                      editor@oudbm.ac.in (Full Publishing Privileges)
-                    </span>
-                  </div>
-                  <KeyRound className="w-3.5 h-3.5 text-ink-400 group-hover:text-crimson transition-colors" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleFillDemo("section.editor@oudbm.ac.in", "ExecutiveBrief2026!")
-                  }
-                  className="w-full text-left p-2.5 rounded border border-editorial-border hover:border-brass hover:bg-paper-100 transition-colors flex items-center justify-between text-xs group"
-                >
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-ink-900">Prof. R. K. Sharma</span>
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-brass-light text-brass-dark font-bold">
-                        Section Editor
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-ink-500">
-                      section.editor@oudbm.ac.in (Section Review & Publishing)
-                    </span>
-                  </div>
-                  <KeyRound className="w-3.5 h-3.5 text-ink-400 group-hover:text-brass transition-colors" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo("writer@oudbm.ac.in", "ExecutiveBrief2026!")}
-                  className="w-full text-left p-2.5 rounded border border-editorial-border hover:border-ink hover:bg-paper-100 transition-colors flex items-center justify-between text-xs group"
-                >
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-ink-900">Rahul Verma</span>
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-paper-300 text-ink-800 font-bold">
-                        Staff Writer
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-ink-500">
-                      writer@oudbm.ac.in (Draft Only · No Live Publishing)
-                    </span>
-                  </div>
-                  <KeyRound className="w-3.5 h-3.5 text-ink-400 group-hover:text-ink transition-colors" />
-                </button>
-              </div>
-
-              <div className="mt-3 flex items-start gap-1.5 text-[10px] font-mono text-ink-500">
-                <ShieldCheck className="w-3 h-3 text-forest shrink-0 mt-0.5" />
-                <span>
-                  Demo Password: <code className="font-bold text-ink-800">ExecutiveBrief2026!</code>
-                </span>
-              </div>
+          {/* Test & Demonstration Persona Access */}
+          <div className="mt-6 pt-5 border-t border-editorial-border">
+            <div className="flex items-center gap-2 mb-2">
+              <Terminal className="w-4 h-4 text-brass" />
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-ink-800">
+                Editorial Hierarchy Test Personas
+              </span>
             </div>
-          )}
+            <p className="text-[11px] text-ink-600 mb-3 leading-relaxed">
+              Click any role persona below to auto-fill credentials and test editorial workflow permissions:
+            </p>
+
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => handleFillDemo("admin@oudbm.ac.in", "ExecutiveBrief2026!")}
+                className="w-full text-left p-2 rounded border border-editorial-border hover:border-purple-800 hover:bg-paper-100 transition-colors flex items-center justify-between text-xs group"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-ink-900">Dean of Faculty</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-purple-900 text-paper-ivory font-bold">
+                      Tier 4: Administrator
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-ink-500">
+                    admin@oudbm.ac.in (Governance & User Approvals)
+                  </span>
+                </div>
+                <KeyRound className="w-3.5 h-3.5 text-ink-400 group-hover:text-purple-800 transition-colors" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFillDemo("chief@oudbm.ac.in", "ExecutiveBrief2026!")}
+                className="w-full text-left p-2 rounded border border-editorial-border hover:border-crimson hover:bg-paper-100 transition-colors flex items-center justify-between text-xs group"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-ink-900">Dr. V. Sudha</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-crimson text-paper-ivory font-bold">
+                      Tier 3: Chief Editor
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-ink-500">
+                    chief@oudbm.ac.in (Final Sanction & Live Publishing)
+                  </span>
+                </div>
+                <KeyRound className="w-3.5 h-3.5 text-ink-400 group-hover:text-crimson transition-colors" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleFillDemo("section.editor@oudbm.ac.in", "ExecutiveBrief2026!")
+                }
+                className="w-full text-left p-2 rounded border border-editorial-border hover:border-brass hover:bg-paper-100 transition-colors flex items-center justify-between text-xs group"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-ink-900">Prof. R. K. Sharma</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-brass text-paper-ivory font-bold">
+                      Tier 2: Editorial Editor
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-ink-500">
+                    section.editor@oudbm.ac.in (Desk Peer Review & Forwarding)
+                  </span>
+                </div>
+                <KeyRound className="w-3.5 h-3.5 text-ink-400 group-hover:text-brass transition-colors" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFillDemo("writer@oudbm.ac.in", "ExecutiveBrief2026!")}
+                className="w-full text-left p-2 rounded border border-editorial-border hover:border-ink hover:bg-paper-100 transition-colors flex items-center justify-between text-xs group"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-ink-900">Rahul Verma</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-forest text-paper-ivory font-bold">
+                      Tier 1: Section Writer
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-ink-500">
+                    writer@oudbm.ac.in (Draft Dispatches & Submit for Review)
+                  </span>
+                </div>
+                <KeyRound className="w-3.5 h-3.5 text-ink-400 group-hover:text-forest transition-colors" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFillDemo("pending.writer@oudbm.ac.in", "ExecutiveBrief2026!")}
+                className="w-full text-left p-2 rounded border border-editorial-border hover:border-amber-600 hover:bg-paper-100 transition-colors flex items-center justify-between text-xs group"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-ink-900">Pooja Reddy</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-amber-200 text-amber-900 font-bold">
+                      Applicant: Pending Verification
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-ink-500">
+                    pending.writer@oudbm.ac.in (Demonstrates Access Guard)
+                  </span>
+                </div>
+                <KeyRound className="w-3.5 h-3.5 text-ink-400 group-hover:text-amber-600 transition-colors" />
+              </button>
+            </div>
+
+            <div className="mt-3 flex items-start gap-1.5 text-[10px] font-mono text-ink-500">
+              <ShieldCheck className="w-3 h-3 text-forest shrink-0 mt-0.5" />
+              <span>
+                Standard Test Password: <code className="font-bold text-ink-800">ExecutiveBrief2026!</code>
+              </span>
+            </div>
+          </div>
 
           {/* Security Notice */}
           <div className="mt-6 pt-4 border-t border-editorial-border text-center">
             <p className="text-[10px] font-mono text-ink-500">
               Role permissions are strictly enforced by server actions & PostgreSQL RLS policies.
-              Self-registration and public privilege elevation are prohibited.
+              Direct self-registration and public privilege elevation are prohibited.
             </p>
           </div>
         </div>

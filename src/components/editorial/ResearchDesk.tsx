@@ -1,15 +1,22 @@
 import React from "react";
 import Link from "next/link";
 import SectionHeader from "@/components/editorial/SectionHeader";
-import { researchArticles, categories } from "@/data/mockArticles";
+import { researchArticles as defaultResearchArticles, categories } from "@/data/mockArticles";
+import { Article } from "@/lib/types";
 import { FileText, ArrowUpRight } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { getArticleUrl, getDeskUrl } from "@/lib/routes";
 
-export default function ResearchDesk() {
+interface ResearchDeskProps {
+  articles?: Article[];
+}
+
+export default function ResearchDesk({ articles: propArticles }: ResearchDeskProps = {}) {
+  const researchArticles =
+    propArticles && propArticles.length > 0 ? propArticles : defaultResearchArticles;
   const spotlightPaper = researchArticles[0];
   const otherPapers = researchArticles.slice(1);
-  const spotlightUrl = getArticleUrl(spotlightPaper.slug);
+  const spotlightUrl = spotlightPaper ? getArticleUrl(spotlightPaper.slug) : "#";
 
   return (
     <section id="research-desk" className="w-full pb-10">

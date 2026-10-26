@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAuth } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { contentRepository } from "@/lib/data";
 import ArticleEditorForm from "@/components/admin/ArticleEditorForm";
 import { ArrowLeft, FileQuestion } from "lucide-react";
@@ -13,11 +13,12 @@ interface AdminEditArticlePageProps {
 export default async function AdminEditArticlePage({
   params,
 }: AdminEditArticlePageProps) {
-  const user = await requireAuth();
+  const session = await requireSession();
+  const user = session.user;
   const { id } = await params;
 
   const [article, categories, authors] = await Promise.all([
-    contentRepository.getArticleById(id),
+    contentRepository.getArticleById(id, session.token),
     contentRepository.getAllCategories(),
     contentRepository.getAllAuthors(),
   ]);

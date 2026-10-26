@@ -1,4 +1,12 @@
-import { Article, Author, Category, PublicationIssue, MarketIndicator } from "../types";
+import {
+  Article,
+  Author,
+  Category,
+  PublicationIssue,
+  MarketIndicator,
+  ArticleWorkflowAuditEntry,
+} from "../types";
+import { EditorialRole, EditorialUser } from "../auth/types";
 
 export interface BriefingStripItem {
   id: string;
@@ -57,20 +65,77 @@ export interface ContentRepository {
   getCoverCompanionArticles(): Promise<Article[]>;
 
   /** Retrieve all articles including drafts and in-review for admin console */
-  getAllArticlesAdmin(): Promise<Article[]>;
+  getAllArticlesAdmin(accessToken?: string): Promise<Article[]>;
 
   /** Retrieve an article by ID for editing */
-  getArticleById(id: string): Promise<Article | undefined>;
+  getArticleById(
+    id: string,
+    accessToken?: string
+  ): Promise<Article | undefined>;
 
   /** Retrieve all authors for contributor management and selection */
   getAllAuthors(): Promise<Author[]>;
 
-  /** Save an article (create or update) with role permission checks */
+  /** Save an article with role permission checks and optional Supabase access token */
   saveArticle(
-    articleData: Partial<Article> & { title: string; categoryId?: string; authorId?: string },
-    user?: { id: string; role: string }
+    articleData: Partial<Article> & {
+      title: string;
+      categoryId?: string;
+      authorId?: string;
+    },
+    user?: { id: string; role: EditorialRole },
+    accessToken?: string
   ): Promise<Article>;
 
-  /** Delete or archive an article with role permission checks */
-  deleteArticle(id: string, user?: { id: string; role: string }): Promise<boolean>;
+  /** Delete an article with role permission checks and optional Supabase access token */
+  deleteArticle(
+    id: string,
+    user?: { id: string; role: EditorialRole },
+    accessToken?: string
+  ): Promise<boolean>;
+
+  /** Retrieve workflow audit trail for an article (or all articles if articleId is omitted) */
+  getWorkflowAuditHistory(
+    articleId?: string,
+    accessToken?: string
+  ): Promise<ArticleWorkflowAuditEntry[]>;
+
+  /** Record a workflow transition in the append-only audit trail */
+  recordWorkflowTransition(
+    entry: {
+      articleId: string;
+      actorId: string;
+      actorName?: string;
+      actorRole?: string;
+      actorEmail?: string;
+      action: string;
+      fromStage: string;
+      toStage: string;
+      revisionReason?: string;
+      notes?: string;
+    },
+    accessToken?: string
+  ): Promise<boolean>;
+
+  /** Execute an atomic workflow transition and log the audit entry */
+  executeWorkflowTransition(
+    params: {
+      articleId: string;
+      action: string;
+      revisionReason?: string;
+      notes?: string;
+    },
+    user?: { id: string; role: EditorialRole; fullName?: string; email?: string },
+    accessToken?: string
+  ): Promise<Article>;
+
+  /** Retrieve all editorial team profiles for administrator management */
+  getEditorialProfiles(accessToken?: string): Promise<EditorialUser[]>;
+
+  /** Update an editorial profile's role, approval status, or section assignments */
+  updateUserProfile(
+    userId: string,
+    updates: Partial<EditorialUser>,
+    accessToken?: string
+  ): Promise<boolean>;
 }

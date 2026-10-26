@@ -16,6 +16,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  RotateCcw,
+  Lock,
 } from "lucide-react";
 
 interface ArticleListTableProps {
@@ -37,6 +39,11 @@ export default function ArticleListTable({
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Sync state if server component refetches
+  React.useEffect(() => {
+    setArticles(initialArticles);
+  }, [initialArticles]);
+
   const canDelete = permissions.canDeleteArticle(currentUser.role);
 
   const filteredArticles = useMemo(() => {
@@ -52,10 +59,17 @@ export default function ArticleListTable({
       const matchesDesk =
         selectedDesk === "all" || article.category.slug === selectedDesk;
 
-      // Status filter
-      const status = article.status || "published";
+      // Status & Stage filter
+      const status = article.status || "draft";
+      const stage =
+        article.workflowStage ||
+        (status === "published"
+          ? "published"
+          : status === "in_review"
+          ? "editorial_review"
+          : "draft");
       const matchesStatus =
-        selectedStatus === "all" || status === selectedStatus;
+        selectedStatus === "all" || status === selectedStatus || stage === selectedStatus;
 
       return matchesSearch && matchesDesk && matchesStatus;
     });
@@ -160,9 +174,11 @@ export default function ArticleListTable({
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="px-2.5 py-1.5 border border-editorial-border rounded-md bg-paper-50 text-ink-800 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-crimson"
             >
-              <option value="all">All Statuses</option>
+              <option value="all">All Stages & Statuses</option>
               <option value="published">Published</option>
-              <option value="in_review">In Review</option>
+              <option value="chief_review">Chief Review</option>
+              <option value="editorial_review">Editorial Review</option>
+              <option value="revision_requested">Revision Requested</option>
               <option value="draft">Draft</option>
               <option value="archived">Archived</option>
             </select>
@@ -222,15 +238,27 @@ export default function ArticleListTable({
                   <th className="py-3 px-4 sm:px-6">Headline & Deck</th>
                   <th className="py-3 px-4">Desk</th>
                   <th className="py-3 px-4">Author</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Stage / Status</th>
                   <th className="py-3 px-4">Reading Time</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-editorial-border/60 text-xs">
                 {filteredArticles.map((article) => {
-                  const status = article.status || "published";
+                  const status = article.status || "draft";
                   const isPublished = status === "published";
+                  const stage =
+                    article.workflowStage ||
+                    (isPublished
+                      ? "published"
+                      : status === "in_review"
+                      ? "editorial_review"
+                      : status);
+                  const isWriter =
+                    permissions.isSectionWriter(currentUser.role) &&
+                    !permissions.isEditorialEditor(currentUser.role);
+                  const isOwner = !article.createdBy || article.createdBy === currentUser.id;
+                  const canEdit = !isWriter || isOwner;
 
                   return (
                     <tr
@@ -286,25 +314,33 @@ export default function ArticleListTable({
                         </div>
                       </td>
 
-                      {/* Status */}
+                      {/* Status / Stage */}
                       <td className="py-4 px-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${
-                            isPublished
+                            stage === "published"
                               ? "bg-forest-light text-forest border border-forest/30"
-                              : status === "in_review"
+                              : stage === "chief_review"
+                              ? "bg-crimson-light text-crimson-900 border border-crimson/30"
+                              : stage === "editorial_review"
                               ? "bg-brass-light text-brass-dark border border-brass/30"
+                              : stage === "revision_requested"
+                              ? "bg-amber-100 text-amber-900 border border-amber-300"
+                              : stage === "archived"
+                              ? "bg-paper-200 text-ink-500 border border-editorial-border"
                               : "bg-paper-200 text-ink-700 border border-editorial-border"
                           }`}
                         >
-                          {isPublished ? (
+                          {stage === "published" ? (
                             <CheckCircle2 className="w-3 h-3" />
-                          ) : status === "in_review" ? (
+                          ) : stage === "revision_requested" ? (
+                            <RotateCcw className="w-3 h-3 text-amber-700" />
+                          ) : stage === "chief_review" || stage === "editorial_review" ? (
                             <Clock className="w-3 h-3" />
                           ) : (
                             <Edit className="w-3 h-3" />
                           )}
-                          <span>{status}</span>
+                          <span>{stage.replace(/_/g, " ")}</span>
                         </span>
                       </td>
 
@@ -316,13 +352,22 @@ export default function ArticleListTable({
                       {/* Actions */}
                       <td className="py-4 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`/admin/articles/${article.id}/edit`}
-                            className="p-1.5 text-ink-600 hover:text-crimson hover:bg-paper-200 rounded transition-colors"
-                            title="Edit Dispatch"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Link>
+                          {canEdit ? (
+                            <Link
+                              href={`/admin/articles/${article.id}/edit`}
+                              className="p-1.5 text-ink-600 hover:text-crimson hover:bg-paper-200 rounded transition-colors"
+                              title="Edit Dispatch"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Link>
+                          ) : (
+                            <span
+                              className="p-1.5 text-ink-400 cursor-not-allowed"
+                              title="Writers can only edit their own dispatches."
+                            >
+                              <Lock className="w-4 h-4" />
+                            </span>
+                          )}
 
                           {isPublished && (
                             <Link
