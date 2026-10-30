@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { currentIssue, marketIndicators } from "@/data/mockArticles";
-import { CloudSun, MapPin, Globe, ChevronDown, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { CloudSun, MapPin, Globe, ChevronDown, PenSquare, Sparkles } from "lucide-react";
 
 export default function TopUtilityBar() {
   const [dateStr, setDateStr] = useState<string>("Wednesday, 14 October 2026");
@@ -24,15 +24,15 @@ export default function TopUtilityBar() {
   return (
     <div className="w-full border-b border-editorial-border bg-paper-50 text-[11px] text-ink-600 font-mono tracking-wide">
       <div className="max-w-masthead mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-col md:flex-row items-center justify-between gap-2">
-        {/* Left: Date, Issue, Location */}
+        {/* Left: Date, Inaugural Edition Pill, Location, Weather */}
         <div className="flex flex-wrap items-center gap-3 justify-center md:justify-start">
           <span className="font-semibold text-ink-900 uppercase tracking-widest flex items-center gap-1.5">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-crimson"></span>
             {dateStr}
           </span>
           <span className="text-ink-400">|</span>
-          <span className="text-ink-700 bg-paper-200/60 px-2 py-0.5 rounded font-medium">
-            {currentIssue.volume} · {currentIssue.issueNumber}
+          <span className="text-crimson bg-crimson-light/40 border border-crimson/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px]">
+            Edition 001
           </span>
           <span className="text-ink-400 hidden sm:inline">|</span>
           <span className="hidden sm:inline-flex items-center gap-1 text-ink-600">
@@ -46,20 +46,18 @@ export default function TopUtilityBar() {
           </span>
         </div>
 
-        {/* Center/Right: Live Indicators & Edition switcher */}
-        <div className="flex items-center gap-4">
-          <div className="hidden xl:flex items-center gap-3">
-            {marketIndicators.slice(0, 2).map((item) => (
-              <span key={item.symbol} className="inline-flex items-center gap-1">
-                <span className="text-ink-500 font-medium">{item.symbol}:</span>
-                <span className="text-ink-800 font-semibold">{item.value}</span>
-                <span className={item.isPositive ? "text-forest font-semibold" : "text-crimson font-semibold"}>
-                  {item.change}
-                </span>
-              </span>
-            ))}
-          </div>
+        {/* Right: Write for The Executive Brief (Prominent Student Portal Link) & Actions */}
+        <div className="flex items-center gap-3">
+          {/* Prominent Student Submission Portal Button */}
+          <Link
+            href="/submit"
+            className="inline-flex items-center gap-1.5 bg-crimson text-paper-ivory hover:bg-crimson-800 px-3 py-1 rounded text-[11px] font-sans font-bold uppercase tracking-wider shadow-sm transition-all"
+          >
+            <PenSquare className="w-3.5 h-3.5 text-paper-ivory" />
+            <span>Write for The Executive Brief</span>
+          </Link>
 
+          {/* Edition switcher */}
           <div className="relative">
             <button
               onClick={() => setIsEditionOpen(!isEditionOpen)}
@@ -109,7 +107,7 @@ export default function TopUtilityBar() {
 
           <a
             href="#newsletter"
-            className="inline-flex items-center gap-1 bg-ink text-paper-50 px-2.5 py-1 rounded text-[11px] font-sans font-medium hover:bg-crimson transition-colors"
+            className="hidden sm:inline-flex items-center gap-1 bg-ink text-paper-50 px-2.5 py-1 rounded text-[11px] font-sans font-medium hover:bg-crimson transition-colors"
           >
             <Sparkles className="w-3 h-3 text-brass-light" />
             Weekly Dispatch

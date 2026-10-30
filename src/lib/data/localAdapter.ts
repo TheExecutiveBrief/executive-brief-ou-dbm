@@ -6,13 +6,15 @@ import {
   PublicationIssue,
   MarketIndicator,
   ArticleWorkflowAuditEntry,
+  StudentSubmission,
+  ArticleRevision,
+  SystemAuditLogEntry,
 } from "../types";
 import { EditorialRole, EditorialUser, permissions } from "../auth/types";
 import {
   allArticles,
   categories,
   publicationIssues,
-  marketIndicators,
   briefingStripItems,
   leadStory,
   coverCompanionArticles,
@@ -26,97 +28,155 @@ import {
   getArticlesByIssue as localGetArticlesByIssue,
 } from "../../data/mockArticles";
 
-// Build unique list of authors from mockArticles
 function extractUniqueAuthors(): Author[] {
   const map = new Map<string, Author>();
   for (const article of allArticles) {
-    if (article.author && !map.has(article.author.id)) {
+    if (article.author && article.author.id && !map.has(article.author.id)) {
       map.set(article.author.id, article.author);
     }
   }
   return Array.from(map.values());
 }
 
-/**
- * Local in-memory content repository adapter.
- * Uses src/data/mockArticles.ts as the authoritative local source of truth.
- * Guarantees zero latency, zero external network dependency, and full stability.
- */
 export class LocalContentRepository implements ContentRepository {
   private inMemoryArticles: Article[] = allArticles.map((a) => ({
     ...a,
     status: a.status || "published",
+    authorDisplayMode: a.authorDisplayMode || "profile",
+    hasDraftChanges: false,
+    draftData: null,
   }));
 
+  private inMemoryIssues: PublicationIssue[] = [...publicationIssues];
   private inMemoryAuthors: Author[] = extractUniqueAuthors();
+  private inMemoryCategories: Category[] = localGetAllCategories();
+  private inMemorySubmissions: StudentSubmission[] = [];
+  private inMemoryRevisions: ArticleRevision[] = [];
+  private inMemoryAuditLogs: SystemAuditLogEntry[] = [];
+  private inMemoryEmailLogs: any[] = [];
+  private inMemoryWorkflowAudit: ArticleWorkflowAuditEntry[] = [];
+  private inMemorySettings: Record<string, any> = {
+    submission_settings: {
+      enabled: true,
+      maxFileSizeBytes: 10485760,
+      allowedMimeTypes: ["application/pdf"],
+      guidelines: "Contributions must reflect original analytical research, campus leadership, economic perspectives, or student viewpoints.",
+      contactEmail: "executivebrief@oudbm.ac.in",
+    },
+    email_settings: {
+      enabled: true,
+      fromEmail: "executivebrief@oudbm.ac.in",
+      fromName: "The Executive Brief Editorial Board",
+      confirmationSubject: "Submission Confirmation — The Executive Brief [{{reference_number}}]",
+    },
+    website_branding: {
+      publicationName: "The Executive Brief",
+      tagline: "Intelligence on Strategy, Regional Economies, Campus Leadership & Management Thought",
+      university: "Osmania University",
+      department: "Department of Business Management",
+      foundedYear: 1962,
+    },
+    dossier_active: {
+      volume: "Edition 001",
+      issue: "001",
+      slug: "edition-001",
+      theme: "The New Indian Enterprise: Talent, Capital, and the Hyderabad Nexus",
+    },
+  };
+
+  private inMemoryUsers: EditorialUser[] = [
+    {
+      id: "usr-admin-01",
+      email: "admin.theexecutivebrief@gmail.com",
+      fullName: "Administrator",
+      role: "admin",
+      approvalStatus: "approved",
+      affiliation: "Administrative Board, OU DBM",
+      avatarUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&q=80",
+    },
+    {
+      id: "usr-chief-01",
+      email: "chief.theexecutivebrief@gmail.com",
+      fullName: "Editor in Chief",
+      role: "editorial",
+      approvalStatus: "approved",
+      affiliation: "Editorial Board, OU DBM",
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80",
+    },
+    {
+      id: "usr-editorial-01",
+      email: "editorial.theexecutivebrief@gmail.com",
+      fullName: "Editorial Editor",
+      role: "editorial",
+      approvalStatus: "approved",
+      affiliation: "Editorial Board, OU DBM",
+      avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80",
+    },
+  ];
 
   async getAllArticles(): Promise<Article[]> {
-    return this.inMemoryArticles.filter((a) => a.status === "published" || !a.status);
-  }
-
-  async getAllArticlesAdmin(accessToken?: string): Promise<Article[]> {
-    return [...this.inMemoryArticles];
-  }
-
-  async getArticleById(id: string, accessToken?: string): Promise<Article | undefined> {
-    return this.inMemoryArticles.find((a) => a.id === id);
+    return this.inMemoryArticles.filter((a) => a.status === "published");
   }
 
   async getArticleBySlug(slug: string): Promise<Article | undefined> {
     const found = this.inMemoryArticles.find((a) => a.slug === slug);
-    if (found && (found.status === "published" || !found.status)) return found;
-    const fallback = localGetArticleBySlug(slug);
-    if (fallback && (fallback.status === "published" || !fallback.status)) return fallback;
-    return undefined;
+    return found || localGetArticleBySlug(slug);
   }
 
-  async getRelatedArticles(currentSlug: string, limit: number = 3): Promise<Article[]> {
-    const current = await this.getArticleBySlug(currentSlug);
-    if (!current) return this.inMemoryArticles.slice(0, limit);
-
-    const others = this.inMemoryArticles.filter(
-      (a) => a.slug !== currentSlug && (a.status === "published" || !a.status)
-    );
-    const sameCat = others.filter((a) => a.category.slug === current.category.slug);
-    const diffCat = others.filter((a) => a.category.slug !== current.category.slug);
-
-    return [...sameCat, ...diffCat].slice(0, limit);
+  async getRelatedArticles(currentSlug: string, limit?: number): Promise<Article[]> {
+    return localGetRelatedArticles(currentSlug, limit);
   }
 
   async getAllCategories(): Promise<Category[]> {
-    return localGetAllCategories();
+    return this.inMemoryCategories;
   }
 
   async getCategoryBySlug(slug: string): Promise<Category | undefined> {
-    return localGetCategoryBySlug(slug);
+    const cat = this.inMemoryCategories.find((c) => c.slug === slug);
+    return cat || localGetCategoryBySlug(slug);
+  }
+
+  async saveCategory(category: Partial<Category> & { name: string; slug: string }): Promise<Category> {
+    const index = this.inMemoryCategories.findIndex((c) => c.id === category.id || c.slug === category.slug);
+    if (index >= 0) {
+      this.inMemoryCategories[index] = { ...this.inMemoryCategories[index], ...category } as Category;
+      return this.inMemoryCategories[index];
+    }
+    const newCat: Category = {
+      id: category.id || `cat-${Date.now()}`,
+      name: category.name,
+      slug: category.slug as any,
+      description: category.description || "",
+      deskNumber: category.deskNumber || `Desk 0${this.inMemoryCategories.length}`,
+      accentColor: category.accentColor || "crimson",
+    };
+    this.inMemoryCategories.push(newCat);
+    return newCat;
   }
 
   async getArticlesByDesk(categorySlug: string): Promise<Article[]> {
     return this.inMemoryArticles.filter(
-      (a) => a.category.slug === categorySlug && (a.status === "published" || !a.status)
+      (a) => a.category?.slug === categorySlug && a.status === "published"
     );
   }
 
   async getAllIssues(): Promise<PublicationIssue[]> {
-    return localGetAllIssues();
+    return this.inMemoryIssues;
   }
 
   async getIssueBySlug(slug: string): Promise<PublicationIssue | undefined> {
-    return localGetIssueBySlug(slug);
+    return this.inMemoryIssues.find((i) => i.slug === slug) || localGetIssueBySlug(slug);
   }
 
   async getArticlesByIssue(issueSlug: string): Promise<Article[]> {
     return this.inMemoryArticles.filter(
-      (a) => a.issueSlug === issueSlug && (a.status === "published" || !a.status)
+      (a) => a.issueSlug === issueSlug && a.status === "published"
     );
   }
 
-  async getAllAuthors(): Promise<Author[]> {
-    return [...this.inMemoryAuthors];
-  }
-
   async getMarketIndicators(): Promise<MarketIndicator[]> {
-    return marketIndicators;
+    // Deprecated per Specification 3: financial indicators removed
+    return [];
   }
 
   async getBriefingStripItems(): Promise<BriefingStripItem[]> {
@@ -124,210 +184,362 @@ export class LocalContentRepository implements ContentRepository {
   }
 
   async getCurrentIssue(): Promise<PublicationIssue | undefined> {
-    return publicationIssues.find((i) => i.isCurrent) ?? publicationIssues[0];
+    return this.inMemoryIssues.find((i) => i.isCurrent) || this.inMemoryIssues[0];
   }
 
   async getLeadStory(): Promise<Article | undefined> {
-    const lead = this.inMemoryArticles.find((a) => a.isLeadStory && (a.status === "published" || !a.status));
-    return lead ?? leadStory;
+    const lead = this.inMemoryArticles.find((a) => a.isLeadStory && a.status === "published");
+    return lead || leadStory;
   }
 
   async getCoverCompanionArticles(): Promise<Article[]> {
-    const lead = await this.getLeadStory();
-    return this.inMemoryArticles
-      .filter((a) => a.slug !== lead?.slug && (a.status === "published" || !a.status))
-      .slice(0, 2);
+    const list = this.inMemoryArticles.filter(
+      (a) => !a.isLeadStory && a.status === "published" && a.category?.slug === "special-report"
+    );
+    return list.length > 0 ? list.slice(0, 3) : coverCompanionArticles;
+  }
+
+  async getAllArticlesAdmin(): Promise<Article[]> {
+    return [...this.inMemoryArticles];
+  }
+
+  async getArticleById(id: string): Promise<Article | undefined> {
+    return this.inMemoryArticles.find((a) => a.id === id);
+  }
+
+  async getAllAuthors(): Promise<Author[]> {
+    return [...this.inMemoryAuthors];
+  }
+
+  async saveAuthor(author: Partial<Author> & { name: string; role: string; affiliation: string }): Promise<Author> {
+    const index = this.inMemoryAuthors.findIndex((a) => a.id === author.id);
+    if (index >= 0) {
+      this.inMemoryAuthors[index] = { ...this.inMemoryAuthors[index], ...author };
+      return this.inMemoryAuthors[index];
+    }
+    const newAuthor: Author = {
+      id: author.id || `author-${Date.now()}`,
+      name: author.name,
+      role: author.role,
+      affiliation: author.affiliation,
+      avatar: author.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&q=80",
+      bio: author.bio,
+      email: author.email,
+      slug: author.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    };
+    this.inMemoryAuthors.push(newAuthor);
+    return newAuthor;
+  }
+
+  async deleteAuthor(id: string): Promise<boolean> {
+    const prev = this.inMemoryAuthors.length;
+    this.inMemoryAuthors = this.inMemoryAuthors.filter((a) => a.id !== id);
+    return this.inMemoryAuthors.length < prev;
   }
 
   async saveArticle(
     articleData: Partial<Article> & { title: string; categoryId?: string; authorId?: string },
-    user?: { id: string; role: EditorialRole },
-    accessToken?: string
+    user?: { id: string; role: EditorialRole }
   ): Promise<Article> {
-    if (
-      user &&
-      (articleData.status === "published" || articleData.status === "archived") &&
-      !permissions.canPublish(user.role)
-    ) {
-      throw new Error(
-        "Permission Denied: Only Chief Editors and Administrators can publish or archive articles."
-      );
+    const index = this.inMemoryArticles.findIndex((a) => a.id === articleData.id);
+    const cat = articleData.categoryId
+      ? this.inMemoryCategories.find((c) => c.id === articleData.categoryId)
+      : articleData.category || this.inMemoryCategories[0];
+    const aut = articleData.authorId
+      ? this.inMemoryAuthors.find((a) => a.id === articleData.authorId)
+      : articleData.author;
+
+    if (index >= 0) {
+      const existing = this.inMemoryArticles[index];
+      const updated: Article = {
+        ...existing,
+        ...articleData,
+        category: cat || existing.category,
+        author: aut || existing.author,
+        updatedBy: user?.id,
+      };
+      this.inMemoryArticles[index] = updated;
+      return updated;
     }
 
-    // Determine category
-    const allCats = await this.getAllCategories();
-    let selectedCat: Category = allCats[0];
-    if (articleData.category) {
-      selectedCat = articleData.category;
-    } else if (articleData.categoryId) {
-      const found = allCats.find((c) => c.id === articleData.categoryId || c.slug === articleData.categoryId);
-      if (found) selectedCat = found;
-    }
-
-    // Determine author
-    let selectedAuthor: Author = this.inMemoryAuthors[0];
-    if (articleData.author) {
-      selectedAuthor = articleData.author;
-    } else if (articleData.authorId) {
-      const found = this.inMemoryAuthors.find((a) => a.id === articleData.authorId);
-      if (found) selectedAuthor = found;
-    }
-
-    // Generate slug from title if not provided
-    const baseSlug = articleData.slug || articleData.title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-
-    const existingIndex = articleData.id
-      ? this.inMemoryArticles.findIndex((a) => a.id === articleData.id)
-      : -1;
-
-    const targetArticle: Article = {
+    const newArticle: Article = {
       id: articleData.id || `art-${Date.now()}`,
-      slug: baseSlug,
+      slug: articleData.slug || articleData.title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
       title: articleData.title,
       subtitle: articleData.subtitle || "",
-      excerpt: articleData.excerpt || articleData.title,
-      category: selectedCat,
-      author: selectedAuthor,
+      excerpt: articleData.excerpt || "",
+      category: cat || this.inMemoryCategories[0],
+      author: aut || this.inMemoryAuthors[0],
+      authorId: articleData.authorId,
+      authorDisplayMode: articleData.authorDisplayMode || "profile",
+      customAuthorName: articleData.customAuthorName,
       publishedAt: articleData.publishedAt || new Date().toISOString(),
-      readingTime: articleData.readingTime || "5 min read",
-      coverImage:
-        articleData.coverImage ||
-        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=85",
-      imageCaption: articleData.imageCaption,
-      isLeadStory: Boolean(articleData.isLeadStory),
-      isEditorPick: Boolean(articleData.isEditorPick),
-      isBreaking: Boolean(articleData.isBreaking),
-      edition: articleData.edition || "Hyderabad Edition",
-      issueSlug: articleData.issueSlug || "vol-24-issue-04",
+      readingTime: articleData.readingTime || "4 min read",
+      coverImage: articleData.coverImage || "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=85",
       status: articleData.status || "draft",
-      workflowStage:
-        articleData.workflowStage ||
-        (articleData.status === "published"
-          ? "published"
-          : articleData.status === "archived"
-          ? "archived"
-          : articleData.status === "in_review"
-          ? "editorial_review"
-          : "draft"),
-      createdBy: articleData.createdBy || user?.id,
-      updatedBy: user?.id,
-      lastRevisionReason: articleData.lastRevisionReason,
-      submittedAt: articleData.submittedAt,
-      editorialReviewedAt: articleData.editorialReviewedAt,
-      editorialReviewedBy: articleData.editorialReviewedBy,
-      publishedBy: articleData.publishedBy,
-      tags: articleData.tags && articleData.tags.length > 0 ? articleData.tags : [selectedCat.name],
-      keyTakeaways: articleData.keyTakeaways || [],
-      metrics: articleData.metrics || [],
-      content: articleData.content || [],
+      workflowStage: articleData.workflowStage || "draft",
+      tags: articleData.tags || [],
       bodySections: articleData.bodySections || [],
+      hasDraftChanges: false,
+      draftData: null,
+      createdBy: user?.id,
+      issueSlug: articleData.issueSlug || "edition-001",
     };
 
-    if (existingIndex >= 0) {
-      this.inMemoryArticles[existingIndex] = targetArticle;
-    } else {
-      this.inMemoryArticles.unshift(targetArticle);
-    }
-
-    return targetArticle;
+    this.inMemoryArticles.unshift(newArticle);
+    return newArticle;
   }
 
-  async deleteArticle(id: string, user?: { id: string; role: EditorialRole }, accessToken?: string): Promise<boolean> {
-    if (user && !permissions.canDeleteArticle(user.role)) {
-      throw new Error("Permission Denied: Only Chief Editors and Administrators can delete articles.");
+  async deleteArticle(id: string): Promise<boolean> {
+    const prev = this.inMemoryArticles.length;
+    this.inMemoryArticles = this.inMemoryArticles.filter((a) => a.id !== id);
+    return this.inMemoryArticles.length < prev;
+  }
+
+  async saveDraftWorkingCopy(articleId: string, draftData: Record<string, unknown>): Promise<Article> {
+    const article = this.inMemoryArticles.find((a) => a.id === articleId);
+    if (!article) throw new Error("Article not found");
+    article.hasDraftChanges = true;
+    article.draftData = draftData;
+    return article;
+  }
+
+  async publishDraftWorkingCopy(articleId: string, actorId?: string): Promise<Article> {
+    const article = this.inMemoryArticles.find((a) => a.id === articleId);
+    if (!article) throw new Error("Article not found");
+
+    if (article.draftData) {
+      // Archive previous published state in revisions
+      this.inMemoryRevisions.push({
+        id: `rev-${Date.now()}`,
+        articleId: article.id,
+        versionNumber: this.inMemoryRevisions.filter((r) => r.articleId === article.id).length + 1,
+        title: article.title,
+        subtitle: article.subtitle,
+        excerpt: article.excerpt,
+        contentMarkdown: article.content ? article.content.join("\n\n") : undefined,
+        bodySections: article.bodySections,
+        categoryId: article.category?.id,
+        authorId: article.authorId,
+        authorDisplayMode: article.authorDisplayMode,
+        customAuthorName: article.customAuthorName,
+        coverImageUrl: article.coverImage,
+        imageCaption: article.imageCaption,
+        action: "published_update",
+        createdBy: actorId,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Apply draft updates onto live article
+      const d = article.draftData as any;
+      if (d.title) article.title = d.title;
+      if (d.subtitle !== undefined) article.subtitle = d.subtitle;
+      if (d.excerpt !== undefined) article.excerpt = d.excerpt;
+      if (d.coverImage) article.coverImage = d.coverImage;
+      if (d.imageCaption !== undefined) article.imageCaption = d.imageCaption;
+      if (d.bodySections) article.bodySections = d.bodySections;
+      if (d.authorDisplayMode) article.authorDisplayMode = d.authorDisplayMode;
+      if (d.customAuthorName !== undefined) article.customAuthorName = d.customAuthorName;
+      if (d.categoryId) {
+        const cat = this.inMemoryCategories.find((c) => c.id === d.categoryId);
+        if (cat) article.category = cat;
+      }
+      if (d.authorId) {
+        const aut = this.inMemoryAuthors.find((a) => a.id === d.authorId);
+        if (aut) article.author = aut;
+      }
     }
 
-    const index = this.inMemoryArticles.findIndex((a) => a.id === id);
+    article.hasDraftChanges = false;
+    article.draftData = null;
+    article.status = "published";
+    article.publishedAt = new Date().toISOString();
+    return article;
+  }
+
+  async discardDraftWorkingCopy(articleId: string): Promise<Article> {
+    const article = this.inMemoryArticles.find((a) => a.id === articleId);
+    if (!article) throw new Error("Article not found");
+    article.hasDraftChanges = false;
+    article.draftData = undefined;
+    return article;
+  }
+
+  async getArticleRevisions(articleId: string): Promise<ArticleRevision[]> {
+    return this.inMemoryRevisions.filter((r) => r.articleId === articleId);
+  }
+
+  async publishEdition(issueId: string): Promise<PublicationIssue> {
+    const issue = this.inMemoryIssues.find((i) => i.id === issueId);
+    if (!issue) throw new Error("Issue not found");
+
+    if (!issue.editionNumber) {
+      const max = Math.max(0, ...this.inMemoryIssues.map((i) => i.editionNumber || 0));
+      issue.editionNumber = max + 1;
+      const numStr = String(issue.editionNumber).padStart(3, "0");
+      issue.volume = `Edition ${numStr}`;
+      issue.issueNumber = numStr;
+    }
+
+    this.inMemoryIssues.forEach((i) => (i.isCurrent = false));
+    issue.status = "published";
+    issue.isCurrent = true;
+    return issue;
+  }
+
+  async unpublishEdition(issueId: string): Promise<PublicationIssue> {
+    const issue = this.inMemoryIssues.find((i) => i.id === issueId);
+    if (!issue) throw new Error("Issue not found");
+    issue.status = "draft";
+    issue.isCurrent = false;
+    const nextCurrent = this.inMemoryIssues.find((i) => i.status === "published" && i.id !== issueId);
+    if (nextCurrent) nextCurrent.isCurrent = true;
+    return issue;
+  }
+
+  async saveIssue(issueData: Partial<PublicationIssue> & { title: string }): Promise<PublicationIssue> {
+    const index = this.inMemoryIssues.findIndex((i) => i.id === issueData.id);
     if (index >= 0) {
-      this.inMemoryArticles.splice(index, 1);
-      return true;
+      this.inMemoryIssues[index] = { ...this.inMemoryIssues[index], ...issueData } as PublicationIssue;
+      return this.inMemoryIssues[index];
     }
-    return false;
+    const newIssue: PublicationIssue = {
+      id: issueData.id || `issue-${Date.now()}`,
+      slug: issueData.slug || issueData.title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      volume: issueData.volume || "Draft Edition",
+      issueNumber: issueData.issueNumber || "Draft",
+      title: issueData.title,
+      description: issueData.description || "",
+      dateString: issueData.dateString || "October 2026",
+      academicYear: issueData.academicYear || "Academic Year 2026–27",
+      status: issueData.status || "draft",
+      isCurrent: false,
+      coverImage: issueData.coverImage,
+    };
+    this.inMemoryIssues.push(newIssue);
+    return newIssue;
   }
 
-  // In-memory audit trail and user profile store
-  private inMemoryAudit: ArticleWorkflowAuditEntry[] = [];
-  private inMemoryProfiles: EditorialUser[] = [
-    {
-      id: "usr-demo-adm-00",
-      email: "admin@oudbm.ac.in",
-      fullName: "Admin Controller",
-      role: "administrator",
-      approvalStatus: "approved",
-      affiliation: "Administrative Board, OU DBM",
-    },
-    {
-      id: "usr-demo-eic-01",
-      email: "chief@oudbm.ac.in",
-      fullName: "Dr. V. Sudha",
-      role: "editor_in_chief",
-      approvalStatus: "approved",
-      affiliation: "Head of Department & Chief Editor, OU DBM",
-    },
-    {
-      id: "usr-demo-sec-02",
-      email: "section.editor@oudbm.ac.in",
-      fullName: "Prof. R. K. Sharma",
-      role: "section_editor",
-      approvalStatus: "approved",
-      affiliation: "Senior Faculty & Editorial Editor, OU DBM",
-    },
-    {
-      id: "usr-demo-wri-03",
-      email: "writer@oudbm.ac.in",
-      fullName: "Rahul Verma",
-      role: "section_writer",
-      approvalStatus: "approved",
-      assignedSections: ["special-report", "business"],
-      affiliation: "MBA Class of 2025 · Section Writer, OU DBM",
-    },
-    {
-      id: "usr-demo-pen-04",
-      email: "pending.writer@oudbm.ac.in",
-      fullName: "Priya Nair",
-      role: "section_writer",
-      approvalStatus: "pending",
-      affiliation: "MBA Class of 2026 · Applicant",
-      bio: "Interested in covering corporate finance and regional start-up ecosystems.",
-    },
-  ];
+  async deleteIssue(id: string): Promise<boolean> {
+    const prev = this.inMemoryIssues.length;
+    this.inMemoryIssues = this.inMemoryIssues.filter((i) => i.id !== id);
+    return this.inMemoryIssues.length < prev;
+  }
 
-  async getWorkflowAuditHistory(
-    articleId?: string,
-    accessToken?: string
-  ): Promise<ArticleWorkflowAuditEntry[]> {
-    let list = [...this.inMemoryAudit];
+  async setCurrentIssue(issueId: string): Promise<boolean> {
+    this.inMemoryIssues.forEach((iss) => {
+      iss.isCurrent = iss.id === issueId;
+    });
+    return true;
+  }
+
+  async getStudentSubmissions(status?: string): Promise<StudentSubmission[]> {
+    if (status) {
+      return this.inMemorySubmissions.filter((s) => s.status === status);
+    }
+    return [...this.inMemorySubmissions];
+  }
+
+  async getStudentSubmissionById(id: string): Promise<StudentSubmission | undefined> {
+    return this.inMemorySubmissions.find((s) => s.id === id);
+  }
+
+  async createStudentSubmission(submission: {
+    studentName?: string;
+    rollNumber?: string;
+    email?: string;
+    title: string;
+    content?: string;
+    categoryId?: string;
+    pdfUrl?: string;
+    pdfFilename?: string;
+    displayAuthorName: boolean;
+  }): Promise<StudentSubmission> {
+    const refSeq = 1000 + this.inMemorySubmissions.length + 1;
+    const cat = submission.categoryId ? this.inMemoryCategories.find((c) => c.id === submission.categoryId) : undefined;
+    const newSub: StudentSubmission = {
+      id: `sub-${Date.now()}`,
+      referenceNumber: `EB-2026-${refSeq}`,
+      studentName: submission.studentName,
+      rollNumber: submission.rollNumber,
+      email: submission.email,
+      title: submission.title,
+      content: submission.content,
+      categoryId: submission.categoryId,
+      category: cat,
+      pdfUrl: submission.pdfUrl,
+      pdfFilename: submission.pdfFilename,
+      displayAuthorName: submission.displayAuthorName,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    this.inMemorySubmissions.unshift(newSub);
+    return newSub;
+  }
+
+  async updateStudentSubmission(id: string, updates: Partial<StudentSubmission>): Promise<StudentSubmission> {
+    const sub = this.inMemorySubmissions.find((s) => s.id === id);
+    if (!sub) throw new Error("Submission not found");
+    Object.assign(sub, updates, { updatedAt: new Date().toISOString() });
+    return sub;
+  }
+
+  async deleteStudentSubmission(id: string): Promise<boolean> {
+    const prev = this.inMemorySubmissions.length;
+    this.inMemorySubmissions = this.inMemorySubmissions.filter((s) => s.id !== id);
+    return this.inMemorySubmissions.length < prev;
+  }
+
+  async convertSubmissionToDraft(submissionId: string, actorId?: string): Promise<Article> {
+    const sub = await this.getStudentSubmissionById(submissionId);
+    if (!sub) throw new Error("Submission not found");
+
+    const article = await this.saveArticle({
+      title: sub.title,
+      categoryId: sub.categoryId,
+      authorDisplayMode: sub.displayAuthorName && sub.studentName ? "student" : "anonymous",
+      customAuthorName: sub.displayAuthorName ? sub.studentName : undefined,
+      bodySections: sub.content ? [{ paragraphs: [sub.content] }] : [],
+      status: "draft",
+      workflowStage: "draft",
+    }, { id: actorId || "system", role: "editorial" });
+
+    await this.updateStudentSubmission(submissionId, {
+      status: "draft",
+      createdArticleId: article.id,
+      reviewedBy: actorId,
+      reviewedAt: new Date().toISOString(),
+    });
+
+    return article;
+  }
+
+  async getWorkflowAuditHistory(articleId?: string): Promise<ArticleWorkflowAuditEntry[]> {
     if (articleId) {
-      list = list.filter((a) => a.articleId === articleId);
+      return this.inMemoryWorkflowAudit.filter((a) => a.articleId === articleId);
     }
-    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return [...this.inMemoryWorkflowAudit];
   }
 
-  async recordWorkflowTransition(
-    entry: {
-      articleId: string;
-      actorId: string;
-      actorName?: string;
-      actorRole?: string;
-      actorEmail?: string;
-      action: string;
-      fromStage: string;
-      toStage: string;
-      revisionReason?: string;
-      notes?: string;
-    },
-    accessToken?: string
-  ): Promise<boolean> {
-    const actor = this.inMemoryProfiles.find((p) => p.id === entry.actorId);
-    this.inMemoryAudit.unshift({
-      id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+  async recordWorkflowTransition(entry: {
+    articleId: string;
+    actorId: string;
+    actorName?: string;
+    actorRole?: string;
+    actorEmail?: string;
+    action: string;
+    fromStage: string;
+    toStage: string;
+    revisionReason?: string;
+    notes?: string;
+  }): Promise<boolean> {
+    this.inMemoryWorkflowAudit.unshift({
+      id: `audit-${Date.now()}`,
       articleId: entry.articleId,
       actorId: entry.actorId,
-      actorName: entry.actorName || actor?.fullName || "Editorial Member",
-      actorRole: entry.actorRole || actor?.role || "Editorial Member",
+      actorName: entry.actorName,
+      actorRole: entry.actorRole,
       action: entry.action,
       fromStage: entry.fromStage,
       toStage: entry.toStage,
@@ -335,124 +547,129 @@ export class LocalContentRepository implements ContentRepository {
       notes: entry.notes,
       createdAt: new Date().toISOString(),
     });
-
-    // Also update article in memory
-    const art = this.inMemoryArticles.find((a) => a.id === entry.articleId);
-    if (art) {
-      art.workflowStage = entry.toStage as any;
-      if (entry.revisionReason) {
-        art.lastRevisionReason = entry.revisionReason;
-      }
-      if (entry.toStage === "published") {
-        art.status = "published";
-        art.publishedAt = new Date().toISOString();
-        art.publishedBy = entry.actorId;
-      } else if (entry.toStage === "archived") {
-        art.status = "archived";
-      } else if (entry.toStage === "editorial_review" || entry.toStage === "chief_review") {
-        art.status = "in_review";
-      } else if (entry.toStage === "draft" || entry.toStage === "revision_requested") {
-        art.status = "draft";
-      }
-    }
-
     return true;
   }
 
-  async executeWorkflowTransition(
-    params: {
-      articleId: string;
-      action: string;
-      revisionReason?: string;
-      notes?: string;
-    },
-    user?: { id: string; role: EditorialRole; fullName?: string; email?: string },
-    accessToken?: string
-  ): Promise<Article> {
-    const article = await this.getArticleById(params.articleId);
-    if (!article) throw new Error("Article not found.");
+  async executeWorkflowTransition(params: {
+    articleId: string;
+    action: string;
+    revisionReason?: string;
+    notes?: string;
+  }, user?: { id: string; role: EditorialRole; fullName?: string; email?: string }): Promise<Article> {
+    const article = this.inMemoryArticles.find((a) => a.id === params.articleId);
+    if (!article) throw new Error("Article not found");
+    const prevStage = article.workflowStage || "draft";
+    let nextStage = prevStage;
 
-    const currentStage = article.workflowStage || "draft";
-    let targetStage: Article["workflowStage"] = currentStage;
-    let targetStatus: Article["status"] = article.status;
-
-    switch (params.action) {
-      case "submit_for_editorial_review":
-        targetStage = "editorial_review";
-        targetStatus = "in_review";
-        break;
-      case "forward_to_chief":
-        targetStage = "chief_review";
-        targetStatus = "in_review";
-        break;
-      case "return_for_revision":
-        targetStage = "revision_requested";
-        targetStatus = "draft";
-        break;
-      case "approve_and_publish":
-        targetStage = "published";
-        targetStatus = "published";
-        break;
-      case "unpublish_to_draft":
-      case "restore_from_archive":
-        targetStage = "draft";
-        targetStatus = "draft";
-        break;
-      case "archive":
-        targetStage = "archived";
-        targetStatus = "archived";
-        break;
-      default:
-        throw new Error(`Unknown workflow action: "${params.action}".`);
+    if (params.action === "submit_review") nextStage = "editorial_review";
+    else if (params.action === "approve") nextStage = "published";
+    else if (params.action === "publish") {
+      nextStage = "published";
+      article.status = "published";
+      article.publishedAt = new Date().toISOString();
+    } else if (params.action === "unpublish") {
+      nextStage = "draft";
+      article.status = "draft";
     }
 
-    const updated = await this.saveArticle(
-      {
-        ...article,
-        status: targetStatus,
-        workflowStage: targetStage,
-        lastRevisionReason: params.revisionReason?.trim() || article.lastRevisionReason,
-        publishedAt: targetStatus === "published" ? (article.publishedAt || new Date().toISOString()) : article.publishedAt,
-        publishedBy: targetStatus === "published" ? user?.id : article.publishedBy,
-        editorialReviewedAt: params.action === "forward_to_chief" ? new Date().toISOString() : article.editorialReviewedAt,
-        editorialReviewedBy: params.action === "forward_to_chief" ? user?.id : article.editorialReviewedBy,
-        submittedAt: params.action === "submit_for_editorial_review" ? new Date().toISOString() : article.submittedAt,
-      },
-      user,
-      accessToken
-    );
+    article.workflowStage = nextStage as any;
+    await this.recordWorkflowTransition({
+      articleId: article.id,
+      actorId: user?.id || "system",
+      actorName: user?.fullName,
+      actorRole: user?.role,
+      action: params.action,
+      fromStage: prevStage,
+      toStage: nextStage,
+      notes: params.notes,
+    });
 
-    await this.recordWorkflowTransition(
-      {
-        articleId: params.articleId,
-        actorId: user?.id || "",
-        actorName: user?.fullName || "Editorial Member",
-        actorRole: user?.role || "contributor",
-        actorEmail: user?.email,
-        action: params.action,
-        fromStage: currentStage,
-        toStage: targetStage,
-        revisionReason: params.revisionReason?.trim(),
-        notes: params.notes?.trim(),
-      },
-      accessToken
-    );
-
-    return updated;
+    return article;
   }
 
-  async getEditorialProfiles(accessToken?: string): Promise<EditorialUser[]> {
-    return [...this.inMemoryProfiles];
+  async getSystemAuditLogs(limit?: number): Promise<SystemAuditLogEntry[]> {
+    return this.inMemoryAuditLogs.slice(0, limit || 100);
   }
 
-  async updateUserProfile(
-    userId: string,
-    updates: Partial<EditorialUser>,
-    accessToken?: string
-  ): Promise<boolean> {
-    const profile = this.inMemoryProfiles.find((p) => p.id === userId);
-    if (!profile) return false;
-    Object.assign(profile, updates);
+  async recordSystemAuditLog(entry: {
+    actorId?: string;
+    actorName?: string;
+    actorEmail?: string;
+    actorRole?: string;
+    action: string;
+    resourceType: string;
+    resourceId?: string;
+    resourceTitle?: string;
+    details?: Record<string, unknown>;
+  }): Promise<boolean> {
+    this.inMemoryAuditLogs.unshift({
+      id: `sys-${Date.now()}`,
+      ...entry,
+      createdAt: new Date().toISOString(),
+    });
     return true;
+  }
+
+  async getEmailLogs(limit?: number): Promise<any[]> {
+    return this.inMemoryEmailLogs.slice(0, limit || 100);
+  }
+
+  async recordEmailLog(entry: {
+    recipientEmail: string;
+    subject: string;
+    referenceNumber?: string;
+    status: "sent" | "failed" | "queued";
+    errorMessage?: string;
+    payload?: Record<string, unknown>;
+  }): Promise<boolean> {
+    this.inMemoryEmailLogs.unshift({
+      id: `eml-${Date.now()}`,
+      ...entry,
+      createdAt: new Date().toISOString(),
+    });
+    return true;
+  }
+
+  async getSiteSettings(): Promise<Record<string, any>> {
+    return this.inMemorySettings;
+  }
+
+  async updateSiteSetting(key: string, value: any): Promise<boolean> {
+    this.inMemorySettings[key] = value;
+    return true;
+  }
+
+  async getEditorialProfiles(): Promise<EditorialUser[]> {
+    return [...this.inMemoryUsers];
+  }
+
+  async updateUserProfile(userId: string, updates: Partial<EditorialUser>): Promise<boolean> {
+    const user = this.inMemoryUsers.find((u) => u.id === userId);
+    if (!user) return false;
+    Object.assign(user, updates);
+    return true;
+  }
+
+  async createUserProfile(profile: {
+    email: string;
+    fullName: string;
+    role: EditorialRole;
+    approvalStatus?: string;
+  }): Promise<EditorialUser> {
+    const newUser: EditorialUser = {
+      id: `usr-${Date.now()}`,
+      email: profile.email,
+      fullName: profile.fullName,
+      role: profile.role,
+      approvalStatus: (profile.approvalStatus as any) || "approved",
+    };
+    this.inMemoryUsers.push(newUser);
+    return newUser;
+  }
+
+  async deleteUserProfile(userId: string): Promise<boolean> {
+    const prev = this.inMemoryUsers.length;
+    this.inMemoryUsers = this.inMemoryUsers.filter((u) => u.id !== userId);
+    return this.inMemoryUsers.length < prev;
   }
 }

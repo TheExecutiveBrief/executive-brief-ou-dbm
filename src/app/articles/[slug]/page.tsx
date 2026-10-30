@@ -10,6 +10,7 @@ import ReadingProgressBar from "@/components/article/ReadingProgressBar";
 import ShareArticleActions from "@/components/article/ShareArticleActions";
 import TableOfContents from "@/components/article/TableOfContents";
 import ArticleCard from "@/components/editorial/ArticleCard";
+import { Article } from "@/lib/types";
 import {
   Clock,
   ArrowLeft,
@@ -20,10 +21,52 @@ import {
   Info,
   ChevronRight,
   BookOpen,
+  User,
+  Users,
+  EyeOff,
 } from "lucide-react";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+}
+
+function getArticleAuthorInfo(article: Article) {
+  if (article.authorDisplayMode === "student") {
+    return {
+      name: article.customAuthorName || "Student Contributor",
+      role: "Section Writer",
+      affiliation: "Department of Business Management, Osmania University",
+      avatar:
+        article.author.avatar ||
+        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
+      bio: "Contributing student writer for The Executive Brief, researching corporate trends and management pedagogy at the Department of Business Management, Osmania University.",
+      isStudent: true,
+      isAnonymous: false,
+    };
+  }
+  if (article.authorDisplayMode === "anonymous") {
+    return {
+      name: "Executive Editorial Board",
+      role: "Institutional Voice",
+      affiliation: "The Executive Brief · OU DBM",
+      avatar:
+        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=400&q=80",
+      bio: "This dispatch was produced and edited collaboratively under the collective institutional masthead of The Executive Brief Editorial Board at the Department of Business Management, Osmania University.",
+      isStudent: false,
+      isAnonymous: true,
+    };
+  }
+  return {
+    name: article.author.name,
+    role: article.author.role,
+    affiliation: article.author.affiliation,
+    avatar: article.author.avatar,
+    bio:
+      article.author.bio ||
+      `${article.author.name} is a contributing writer and researcher for The Executive Brief, the official publication of the Newsletter & Media Club at the Department of Business Management, Osmania University.`,
+    isStudent: false,
+    isAnonymous: false,
+  };
 }
 
 export async function generateStaticParams() {
@@ -46,6 +89,8 @@ export async function generateMetadata({
     };
   }
 
+  const author = getArticleAuthorInfo(article);
+
   return {
     title: `${article.title} | The Executive Brief — OU DBM`,
     description: article.subtitle || article.excerpt,
@@ -59,13 +104,13 @@ export async function generateMetadata({
     alternates: {
       canonical: getArticleUrl(slug),
     },
-    authors: [{ name: article.author.name }],
+    authors: [{ name: author.name }],
     openGraph: {
       title: `${article.title} — The Executive Brief`,
       description: article.subtitle || article.excerpt,
       type: "article",
       publishedTime: article.publishedAt,
-      authors: [article.author.name],
+      authors: [author.name],
       images: [
         {
           url: article.coverImage,
@@ -97,6 +142,7 @@ export default async function ArticleDetailPage({ params }: PageProps) {
     contentRepository.getCurrentIssue(),
   ]);
   const categoryAnchor = getCategoryAnchor(article.category.slug);
+  const authorInfo = getArticleAuthorInfo(article);
 
   return (
     <>
@@ -138,13 +184,13 @@ export default async function ArticleDetailPage({ params }: PageProps) {
             {article.issueSlug ? (
               <Link
                 href={getIssueUrl(article.issueSlug)}
-                className="font-mono text-xs text-ink-500 hover:text-crimson transition-colors"
+                className="font-mono text-xs text-ink-500 hover:text-crimson transition-colors font-semibold"
               >
-                {currentIssue ? `${currentIssue.volume} · ${currentIssue.issueNumber}` : "Active Volume"}
+                {currentIssue?.volume || "Edition 001"}
               </Link>
             ) : (
-              <span className="font-mono text-xs text-ink-500">
-                {currentIssue ? `${currentIssue.volume} · ${currentIssue.issueNumber}` : "Active Volume"}
+              <span className="font-mono text-xs text-ink-500 font-semibold">
+                {currentIssue?.volume || "Edition 001"}
               </span>
             )}
           </div>
@@ -167,8 +213,8 @@ export default async function ArticleDetailPage({ params }: PageProps) {
             <div className="flex items-center gap-3">
               <div className="relative w-12 h-12 rounded-full overflow-hidden border border-editorial-border shrink-0">
                 <SafeImage
-                  src={article.author.avatar}
-                  alt={article.author.name}
+                  src={authorInfo.avatar}
+                  alt={authorInfo.name}
                   fill
                   sizes="48px"
                   className="object-cover"
@@ -177,14 +223,22 @@ export default async function ArticleDetailPage({ params }: PageProps) {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-serif font-bold text-sm text-ink-950">
-                    {article.author.name}
+                    {authorInfo.name}
                   </span>
-                  <span className="text-[10px] font-mono uppercase bg-paper-200 px-1.5 py-0.2 rounded text-ink-700 font-semibold">
-                    {article.author.role}
+                  <span
+                    className={`text-[10px] font-mono uppercase px-1.5 py-0.2 rounded font-semibold ${
+                      authorInfo.isStudent
+                        ? "bg-amber-100 text-amber-900 border border-amber-300"
+                        : authorInfo.isAnonymous
+                        ? "bg-paper-200 text-ink-700 border border-editorial-border"
+                        : "bg-paper-200 text-ink-700"
+                    }`}
+                  >
+                    {authorInfo.role}
                   </span>
                 </div>
                 <p className="text-xs font-sans text-ink-600">
-                  {article.author.affiliation}
+                  {authorInfo.affiliation}
                 </p>
                 <div className="flex items-center gap-3 text-[11px] font-mono text-ink-500 mt-0.5">
                   <span className="flex items-center gap-1">
@@ -207,21 +261,21 @@ export default async function ArticleDetailPage({ params }: PageProps) {
 
         {/* Hero Image */}
         <figure className="mb-8">
-            <div className="relative w-full h-[260px] sm:h-[380px] md:h-[460px] bg-paper-200 border border-editorial-border overflow-hidden">
-              <SafeImage
-                src={article.coverImage}
-                alt={article.title}
-                fill
-                priority
-                sizes="(max-width: 896px) 100vw, 896px"
-                className="object-cover"
-              />
-            </div>
-            {article.imageCaption && (
-              <figcaption className="mt-2 font-mono text-xs text-ink-500 italic border-b border-editorial-border/60 pb-3">
-                {article.imageCaption}
-              </figcaption>
-            )}
+          <div className="relative w-full h-[260px] sm:h-[380px] md:h-[460px] bg-paper-200 border border-editorial-border overflow-hidden">
+            <SafeImage
+              src={article.coverImage}
+              alt={article.title}
+              fill
+              priority
+              sizes="(max-width: 896px) 100vw, 896px"
+              className="object-cover"
+            />
+          </div>
+          {article.imageCaption && (
+            <figcaption className="mt-2 font-mono text-xs text-ink-500 italic border-b border-editorial-border/60 pb-3">
+              {article.imageCaption}
+            </figcaption>
+          )}
         </figure>
 
         {/* Executive Key Takeaways (if present) */}
@@ -349,9 +403,9 @@ export default async function ArticleDetailPage({ params }: PageProps) {
                 <Info className="w-5 h-5 text-crimson shrink-0 mt-0.5" />
                 <div className="text-xs font-sans text-ink-700 leading-relaxed">
                   <strong className="font-mono uppercase text-ink-900 block mb-1">
-                    Editorial Demonstration Notice
+                    Editorial Notice
                   </strong>
-                  This briefing is published as part of the curated demonstration dataset for{" "}
+                  This briefing is published as part of the official editorial catalog for{" "}
                   <em>The Executive Brief by OU DBM</em>. The full unabridged investigative dossier and quantitative models are catalogued within the Department of Business Management journal repository.
                 </div>
               </div>
@@ -382,8 +436,8 @@ export default async function ArticleDetailPage({ params }: PageProps) {
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="relative w-16 h-16 rounded-full overflow-hidden border border-editorial-border shrink-0">
               <SafeImage
-                src={article.author.avatar}
-                alt={article.author.name}
+                src={authorInfo.avatar}
+                alt={authorInfo.name}
                 fill
                 sizes="64px"
                 className="object-cover"
@@ -391,17 +445,20 @@ export default async function ArticleDetailPage({ params }: PageProps) {
             </div>
             <div>
               <div className="font-mono text-[10px] uppercase font-bold text-crimson tracking-widest mb-1">
-                About the Contributor
+                {authorInfo.isStudent
+                  ? "About the Student Contributor"
+                  : authorInfo.isAnonymous
+                  ? "Editorial Staff Attribution"
+                  : "About the Contributor"}
               </div>
               <h3 className="font-serif text-lg font-bold text-ink-950">
-                {article.author.name}
+                {authorInfo.name}
               </h3>
               <p className="text-xs font-mono text-ink-500 mb-2">
-                {article.author.role} · {article.author.affiliation}
+                {authorInfo.role} · {authorInfo.affiliation}
               </p>
               <p className="font-editorial text-sm text-ink-700 leading-relaxed">
-                {article.author.bio ||
-                  `${article.author.name} is a contributing writer and researcher for The Executive Brief, the official publication of the Newsletter & Media Club at the Department of Business Management, Osmania University.`}
+                {authorInfo.bio}
               </p>
             </div>
           </div>
@@ -418,38 +475,42 @@ export default async function ArticleDetailPage({ params }: PageProps) {
           </Link>
           <a
             href="#newsletter"
-            className="text-ink-600 hover:text-crimson transition-colors"
+            className="text-ink-600 hover:text-crimson font-medium"
           >
-            Subscribe to Weekly Dispatch
+            Subscribe to Digital Dossier ↑
           </a>
         </div>
-
-        {/* Related Articles Desk */}
-        {relatedArticles.length > 0 && (
-          <section className="mt-14 pt-10 border-t-2 border-ink">
-            <div className="flex items-center justify-between pb-3 mb-6 border-b border-editorial-border">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-crimson" />
-                <h2 className="font-serif text-xl sm:text-2xl font-bold text-ink-950 uppercase tracking-tight">
-                  Related Executive Briefings
-                </h2>
-              </div>
-              <Link
-                href={categoryAnchor}
-                className="font-mono text-xs text-ink-600 hover:text-crimson font-medium"
-              >
-                More from {article.category.name} →
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {relatedArticles.map((rel) => (
-                <ArticleCard key={rel.id} article={rel} variant="standard" />
-              ))}
-            </div>
-          </section>
-        )}
       </article>
+
+      {/* Related Research Articles Grid */}
+      {relatedArticles && relatedArticles.length > 0 && (
+        <section className="w-full max-w-4xl mx-auto mt-16 pt-10 border-t-2 border-ink-950">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-crimson" />
+              <h2 className="font-serif text-xl sm:text-2xl font-bold text-ink-950 tracking-tight">
+                Related Research & Dispatches
+              </h2>
+            </div>
+            <Link
+              href={categoryAnchor}
+              className="text-xs font-mono text-crimson hover:underline uppercase tracking-wider font-semibold"
+            >
+              More from this Desk →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {relatedArticles.map((relArticle) => (
+              <ArticleCard
+                key={relArticle.id}
+                article={relArticle}
+                variant="standard"
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </>
   );
 }

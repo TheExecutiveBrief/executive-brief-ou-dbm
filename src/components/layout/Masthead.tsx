@@ -1,11 +1,26 @@
 import React from "react";
 import Link from "next/link";
-import { currentIssue } from "@/data/mockArticles";
 import { ArrowUpRight } from "lucide-react";
 import { getArchiveUrl, getIssueUrl } from "@/lib/routes";
+import { contentRepository } from "@/lib/data";
 
-export default function Masthead() {
-  const currentIssueUrl = getIssueUrl("vol-24-issue-04");
+export default async function Masthead() {
+  let issueSlug = "edition-001";
+  let editionLabel = "Edition 001";
+  let themeTitle = "The New Indian Enterprise: Talent, Capital, and the Hyderabad Nexus";
+
+  try {
+    const current = await contentRepository.getCurrentIssue();
+    if (current) {
+      issueSlug = current.slug || "edition-001";
+      editionLabel = current.volume || (current.editionNumber ? `Edition ${String(current.editionNumber).padStart(3, "0")}` : "Edition 001");
+      themeTitle = current.title || themeTitle;
+    }
+  } catch {
+    // Fallback to defaults
+  }
+
+  const currentIssueUrl = getIssueUrl(issueSlug);
 
   return (
     <div className="w-full bg-paper pt-6 pb-4 border-b border-editorial-border">
@@ -70,12 +85,12 @@ export default function Masthead() {
                 href={currentIssueUrl}
                 className="font-sans font-semibold text-ink-900 hover:text-crimson transition-colors"
               >
-                {currentIssue.theme}
+                {themeTitle}
               </Link>
             </div>
 
             <div className="flex items-center gap-4 text-ink-500">
-              <span className="hidden sm:inline">Volume XXIV · No. 04</span>
+              <span className="hidden sm:inline font-semibold text-ink-700">{editionLabel}</span>
               <span className="text-ink-400 hidden sm:inline">·</span>
               <Link
                 href={getArchiveUrl()}

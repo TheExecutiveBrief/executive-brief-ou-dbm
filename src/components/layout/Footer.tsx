@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { Mail, MapPin, ExternalLink, ArrowUpRight } from "lucide-react";
+import { Mail, MapPin, ExternalLink, ArrowUpRight, PenSquare, Lock } from "lucide-react";
 import { getDeskUrl, getArchiveUrl } from "@/lib/routes";
 
 export default function Footer() {
@@ -26,6 +26,16 @@ export default function Footer() {
             <p className="font-editorial text-sm text-ink-700 leading-relaxed max-w-md">
               Published under the aegis of the Newsletter & Media Club of OU DBM. The Executive Brief provides incisive analysis on strategy, industrial corridors, corporate finance, management scholarship, and student leadership across the Deccan region and beyond.
             </p>
+
+            <div className="pt-2">
+              <Link
+                href="/submit"
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-crimson text-paper-ivory text-xs font-bold uppercase tracking-wider rounded hover:bg-crimson-800 transition-colors shadow-sm"
+              >
+                <PenSquare className="w-3.5 h-3.5" />
+                <span>Write for The Executive Brief</span>
+              </Link>
+            </div>
 
             <div className="font-mono text-xs text-ink-500 space-y-1.5 pt-2">
               <div className="flex items-center gap-2">
@@ -112,13 +122,13 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href={getDeskUrl("voices")} className="hover:text-crimson transition-colors">
-                  Media & Newsletter Club Masthead Roster
+                <Link href="/submit" className="hover:text-crimson transition-colors font-medium text-crimson">
+                  Submit Student Writing / Op-Ed
                 </Link>
               </li>
               <li>
                 <Link href={getArchiveUrl()} className="hover:text-crimson transition-colors">
-                  Digital Archives & Special Editions
+                  Digital Archives & Editions
                 </Link>
               </li>
             </ul>
@@ -132,22 +142,25 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Bottom Tier: Copyright, Disclaimer & Ethics */}
+        {/* Bottom Tier: Copyright, Editorial Login & Links */}
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs font-mono text-ink-500">
           <div>
             © {new Date().getFullYear()} The Executive Brief · Department of Business Management, Osmania University. All rights reserved.
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-[11px]">
+            <Link href="/submit" className="text-crimson hover:underline font-semibold">
+              Write for The Executive Brief
+            </Link>
+            <span>·</span>
             <Link href={getArchiveUrl()} className="hover:text-crimson transition-colors">
-              Issue Archive
+              Edition Archives
             </Link>
             <span>·</span>
-            <Link href={getDeskUrl("special-report")} className="hover:text-crimson transition-colors">
-              Special Reports
+            <Link href="/admin/login" className="inline-flex items-center gap-1 text-ink-600 hover:text-crimson transition-colors">
+              <Lock className="w-3 h-3" />
+              <span>Editorial Access</span>
             </Link>
-            <span>·</span>
-            <span className="text-ink-400">Milestone 3 — Desk Archives & Issue Explorer</span>
           </div>
         </div>
       </div>

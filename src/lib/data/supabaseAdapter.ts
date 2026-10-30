@@ -6,6 +6,9 @@ import {
   PublicationIssue,
   MarketIndicator,
   ArticleWorkflowAuditEntry,
+  StudentSubmission,
+  ArticleRevision,
+  SystemAuditLogEntry,
 } from "../types";
 import { EditorialRole, EditorialUser, permissions } from "../auth/types";
 import {
@@ -13,15 +16,19 @@ import {
   DatabaseAuthorRow,
   DatabaseCategoryRow,
   DatabaseIssueRow,
-  DatabaseMarketIndicatorRow,
   DatabaseWireBriefingRow,
   DatabaseEditorialProfileRow,
+  DatabaseStudentSubmissionRow,
+  DatabaseArticleRevisionRow,
+  DatabaseSystemAuditLogRow,
   mapDatabaseArticleToArticle,
   mapDatabaseAuthorToAuthor,
   mapDatabaseCategoryToCategory,
   mapDatabaseIssueToPublicationIssue,
-  mapDatabaseMarketIndicatorToMarketIndicator,
   mapDatabaseProfileToEditorialUser,
+  mapDatabaseSubmissionToSubmission,
+  mapDatabaseRevisionToRevision,
+  mapDatabaseAuditLogToAuditLog,
 } from "./types";
 
 export class SupabaseConfigurationError extends Error {
@@ -45,11 +52,7 @@ export class SupabaseDatabaseError extends Error {
 
 /**
  * Supabase PostgREST content repository adapter.
- * Communicates directly with Supabase PostgreSQL via the built-in REST endpoint.
- * Zero external client SDK dependency required.
- *
- * NOTE: For Milestone 4B, this adapter is prepared and verified, but the application
- * continues to default to LocalContentRepository until a real Supabase project is provisioned.
+ * Connects directly to Supabase PostgreSQL REST endpoints.
  */
 export class SupabaseContentRepository implements ContentRepository {
   private url: string;
@@ -61,7 +64,7 @@ export class SupabaseContentRepository implements ContentRepository {
 
     if (!supabaseUrl || !supabaseKey) {
       throw new SupabaseConfigurationError(
-        "Supabase credentials are not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local to enable Supabase integration."
+        "Supabase credentials are not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local."
       );
     }
 
@@ -69,64 +72,109 @@ export class SupabaseContentRepository implements ContentRepository {
     this.anonKey = supabaseKey;
   }
 
-  
-private async fetchFromSupabase<T>(
-  endpoint: string,
-  options: RequestInit = {},
-  accessToken?: string
-): Promise<T> {
-  const headers = new Headers(options.headers);
+  private async fetchFromSupabase<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    accessToken?: string
+  ): Promise<T> {
+    const headers = new Headers(options.headers);
 
-  headers.set("apikey", this.anonKey);
-  headers.set(
-    "Authorization",
-    `Bearer ${accessToken || this.anonKey}`
-  );
-  headers.set("Content-Type", "application/json");
+    headers.set("apikey", this.anonKey);
+    headers.set("Authorization", `Bearer ${accessToken || this.anonKey}`);
+    headers.set("Content-Type", "application/json");
 
-  const response = await fetch(`${this.url}/rest/v1/${endpoint}`, {
-    ...options,
-    headers,
-    ...(accessToken
-      ? { cache: "no-store" as const }
-      : { next: { revalidate: 60 } }),
-  });
+    const response = await fetch(`${this.url}/rest/v1/${endpoint}`, {
+      ...options,
+      headers,
+      ...(accessToken
+        ? { cache: "no-store" as const }
+        : { next: { revalidate: 30 } }),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new SupabaseDatabaseError(
+        `Supabase query failed: ${response.status} ${response.statusText} - ${errorText}`,
+        response.status,
+        errorText
+      );
+    }
 
-    throw new SupabaseDatabaseError(
-      `Supabase query failed: ${response.status} ${response.statusText} - ${errorText}`,
-      response.status,
-      errorText
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return (await response.json()) as T;
+    }
+
+    return null as unknown as T;
+  }
+
+  async getAllArticles(): Promise<Article[]> {
+    const [articleRows, categoryRows, authorRows, issueRows] = await Promise.all([
+      this.fetchFromSupabase<DatabaseArticleRow[]>(
+        "articles?status=eq.published&order=published_at.desc"
+      ),
+      this.fetchFromSupabase<DatabaseCategoryRow[]>("categories?select=*"),
+      this.fetchFromSupabase<DatabaseAuthorRow[]>("authors?select=*"),
+      this.fetchFromSupabase<DatabaseIssueRow[]>("issues?select=*"),
+    ]);
+
+    const categoriesMap = new Map(categoryRows.map((c) => [c.id, mapDatabaseCategoryToCategory(c)]));
+    const authorsMap = new Map(authorRows.map((a) => [a.id, mapDatabaseAuthorToAuthor(a)]));
+    const issuesMap = new Map(issueRows.map((i) => [i.id, i.slug]));
+
+    return articleRows.map((row) =>
+      mapDatabaseArticleToArticle(
+        row,
+        row.author_id ? authorsMap.get(row.author_id) : undefined,
+        categoriesMap.get(row.category_id),
+        row.issue_id ? issuesMap.get(row.issue_id) : undefined
+      )
     );
   }
 
-  if (endpoint.startsWith("editorial_profiles?select=")) {
-  console.info("[Profiles REST diagnostic]", {
-    status: response.status,
-    contentRange: response.headers.get("content-range"),
-    bodyPreview: (await response.clone().text()).slice(0, 500),
-  });
-}
+  async getArticleBySlug(slug: string): Promise<Article | undefined> {
+    const rows = await this.fetchFromSupabase<DatabaseArticleRow[]>(
+      `articles?slug=eq.${encodeURIComponent(slug)}&select=*`
+    );
+    if (!rows || rows.length === 0) return undefined;
+    const row = rows[0];
 
-  // Safely handle 204 No Content or empty responses without throwing SyntaxError
-  if (response.status === 204) {
-    return [] as unknown as T;
+    const [categoryRows, authorRows, issueRows] = await Promise.all([
+      this.fetchFromSupabase<DatabaseCategoryRow[]>(`categories?id=eq.${row.category_id}`),
+      row.author_id
+        ? this.fetchFromSupabase<DatabaseAuthorRow[]>(`authors?id=eq.${row.author_id}`)
+        : Promise.resolve([]),
+      row.issue_id
+        ? this.fetchFromSupabase<DatabaseIssueRow[]>(`issues?id=eq.${row.issue_id}`)
+        : Promise.resolve([]),
+    ]);
+
+    const category = categoryRows[0] ? mapDatabaseCategoryToCategory(categoryRows[0]) : undefined;
+    const author = authorRows[0] ? mapDatabaseAuthorToAuthor(authorRows[0]) : undefined;
+    const issueSlug = issueRows[0]?.slug;
+
+    return mapDatabaseArticleToArticle(row, author, category, issueSlug);
   }
 
-  const text = await response.text();
-  if (!text || text.trim() === "") {
-    return [] as unknown as T;
-  }
+  async getRelatedArticles(currentSlug: string, limit = 3): Promise<Article[]> {
+    const current = await this.getArticleBySlug(currentSlug);
+    if (!current) return [];
 
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return text as unknown as T;
-  }
-}
+    const rows = await this.fetchFromSupabase<DatabaseArticleRow[]>(
+      `articles?status=eq.published&slug=neq.${encodeURIComponent(currentSlug)}&category_id=eq.${current.category.id}&order=published_at.desc&limit=${limit}`
+    );
 
+    const authorRows = await this.fetchFromSupabase<DatabaseAuthorRow[]>("authors?select=*");
+    const authorsMap = new Map(authorRows.map((a) => [a.id, mapDatabaseAuthorToAuthor(a)]));
+
+    return rows.map((row) =>
+      mapDatabaseArticleToArticle(
+        row,
+        row.author_id ? authorsMap.get(row.author_id) : undefined,
+        current.category
+      )
+    );
+  }
 
   async getAllCategories(): Promise<Category[]> {
     const rows = await this.fetchFromSupabase<DatabaseCategoryRow[]>(
@@ -137,117 +185,151 @@ private async fetchFromSupabase<T>(
 
   async getCategoryBySlug(slug: string): Promise<Category | undefined> {
     const rows = await this.fetchFromSupabase<DatabaseCategoryRow[]>(
-      `categories?select=*&slug=eq.${encodeURIComponent(slug)}&limit=1`
+      `categories?slug=eq.${encodeURIComponent(slug)}&select=*`
     );
-    return rows.length > 0 ? mapDatabaseCategoryToCategory(rows[0]) : undefined;
+    return rows[0] ? mapDatabaseCategoryToCategory(rows[0]) : undefined;
+  }
+
+  async saveCategory(category: Partial<Category> & { name: string; slug: string }, accessToken?: string): Promise<Category> {
+    const payload: Partial<DatabaseCategoryRow> = {
+      name: category.name,
+      slug: category.slug,
+      description: category.description || "",
+      desk_number: category.deskNumber || "Desk 00",
+      accent_color: category.accentColor || "crimson",
+      display_order: category.displayOrder ?? 0,
+    };
+
+    if (category.id) {
+      const rows = await this.fetchFromSupabase<DatabaseCategoryRow[]>(
+        `categories?id=eq.${encodeURIComponent(category.id)}`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify(payload),
+        },
+        accessToken
+      );
+      return mapDatabaseCategoryToCategory(rows[0]);
+    } else {
+      const rows = await this.fetchFromSupabase<DatabaseCategoryRow[]>(
+        "categories",
+        {
+          method: "POST",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify(payload),
+        },
+        accessToken
+      );
+      return mapDatabaseCategoryToCategory(rows[0]);
+    }
+  }
+
+  async getArticlesByDesk(categorySlug: string): Promise<Article[]> {
+    const cat = await this.getCategoryBySlug(categorySlug);
+    if (!cat) return [];
+
+    const [articleRows, authorRows] = await Promise.all([
+      this.fetchFromSupabase<DatabaseArticleRow[]>(
+        `articles?status=eq.published&category_id=eq.${cat.id}&order=published_at.desc`
+      ),
+      this.fetchFromSupabase<DatabaseAuthorRow[]>("authors?select=*"),
+    ]);
+
+    const authorsMap = new Map(authorRows.map((a) => [a.id, mapDatabaseAuthorToAuthor(a)]));
+    return articleRows.map((row) =>
+      mapDatabaseArticleToArticle(
+        row,
+        row.author_id ? authorsMap.get(row.author_id) : undefined,
+        cat
+      )
+    );
   }
 
   async getAllIssues(): Promise<PublicationIssue[]> {
     const rows = await this.fetchFromSupabase<DatabaseIssueRow[]>(
-      "issues?select=*&status=eq.published&order=published_date.desc"
+      "issues?select=*&order=edition_number.desc.nullslast,published_date.desc"
     );
     return rows.map((r) => mapDatabaseIssueToPublicationIssue(r));
   }
 
   async getIssueBySlug(slug: string): Promise<PublicationIssue | undefined> {
     const rows = await this.fetchFromSupabase<DatabaseIssueRow[]>(
-      `issues?select=*&slug=eq.${encodeURIComponent(slug)}&limit=1`
+      `issues?slug=eq.${encodeURIComponent(slug)}&select=*`
     );
-    return rows.length > 0 ? mapDatabaseIssueToPublicationIssue(rows[0]) : undefined;
+    return rows[0] ? mapDatabaseIssueToPublicationIssue(rows[0]) : undefined;
   }
 
-  async getAllArticles(): Promise<Article[]> {
-    // PostgREST join query retrieving articles with related category, author, and issue
-    type JoinedArticleRow = DatabaseArticleRow & {
-      category: DatabaseCategoryRow;
-      author: DatabaseAuthorRow;
-      issue: DatabaseIssueRow | null;
-    };
+  async getArticlesByIssue(issueSlug: string): Promise<Article[]> {
+    const issue = await this.getIssueBySlug(issueSlug);
+    if (!issue) return [];
 
-    const rows = await this.fetchFromSupabase<JoinedArticleRow[]>(
-      "articles?select=*,category:categories(*),author:authors(*),issue:issues!articles_issue_id_fkey(slug)&status=eq.published&order=published_at.desc"
-    );
+    const [articleRows, categoryRows, authorRows] = await Promise.all([
+      this.fetchFromSupabase<DatabaseArticleRow[]>(
+        `articles?status=eq.published&issue_id=eq.${issue.id}&order=published_at.desc`
+      ),
+      this.fetchFromSupabase<DatabaseCategoryRow[]>("categories?select=*"),
+      this.fetchFromSupabase<DatabaseAuthorRow[]>("authors?select=*"),
+    ]);
 
-    return rows.map((r) =>
+    const categoriesMap = new Map(categoryRows.map((c) => [c.id, mapDatabaseCategoryToCategory(c)]));
+    const authorsMap = new Map(authorRows.map((a) => [a.id, mapDatabaseAuthorToAuthor(a)]));
+
+    return articleRows.map((row) =>
       mapDatabaseArticleToArticle(
-        r,
-        mapDatabaseAuthorToAuthor(r.author),
-        mapDatabaseCategoryToCategory(r.category),
-        r.issue?.slug
+        row,
+        row.author_id ? authorsMap.get(row.author_id) : undefined,
+        categoriesMap.get(row.category_id),
+        issueSlug
       )
     );
   }
 
-  async getArticleBySlug(slug: string): Promise<Article | undefined> {
-    type JoinedArticleRow = DatabaseArticleRow & {
-      category: DatabaseCategoryRow;
-      author: DatabaseAuthorRow;
-      issue: DatabaseIssueRow | null;
-    };
-
-    const rows = await this.fetchFromSupabase<JoinedArticleRow[]>(
-      `articles?select=*,category:categories(*),author:authors(*),issue:issues!articles_issue_id_fkey(slug)&slug=eq.${encodeURIComponent(
-        slug
-      )}&status=eq.published&limit=1`
-    );
-
-    if (rows.length === 0) return undefined;
-    const r = rows[0];
-    return mapDatabaseArticleToArticle(
-      r,
-      mapDatabaseAuthorToAuthor(r.author),
-      mapDatabaseCategoryToCategory(r.category),
-      r.issue?.slug
-    );
-  }
-
-  async getRelatedArticles(currentSlug: string, limit: number = 3): Promise<Article[]> {
-    const current = await this.getArticleBySlug(currentSlug);
-    if (!current) return (await this.getAllArticles()).slice(0, limit);
-
-    const all = await this.getAllArticles();
-    const others = all.filter((a) => a.slug !== currentSlug);
-    const sameCat = others.filter((a) => a.category.slug === current.category.slug);
-    const diffCat = others.filter((a) => a.category.slug !== current.category.slug);
-
-    return [...sameCat, ...diffCat].slice(0, limit);
-  }
-
-  async getArticlesByDesk(categorySlug: string): Promise<Article[]> {
-    const all = await this.getAllArticles();
-    return all.filter((a) => a.category.slug === categorySlug);
-  }
-
-  async getArticlesByIssue(issueSlug: string): Promise<Article[]> {
-    const all = await this.getAllArticles();
-    return all.filter((a) => a.issueSlug === issueSlug);
-  }
-
   async getMarketIndicators(): Promise<MarketIndicator[]> {
-    const rows = await this.fetchFromSupabase<DatabaseMarketIndicatorRow[]>(
-      "market_indicators?select=*&order=display_order.asc"
-    );
-    return rows.map(mapDatabaseMarketIndicatorToMarketIndicator);
+    // Deprecated per Specification 3: financial indicators removed
+    return [];
   }
 
   async getBriefingStripItems(): Promise<BriefingStripItem[]> {
-    const rows = await this.fetchFromSupabase<DatabaseWireBriefingRow[]>(
-      "wire_briefings?select=*&is_active=eq.true&order=display_order.asc"
-    );
-    return rows.map((r) => ({
-      id: r.id,
-      label: r.label,
-      headline: r.headline,
-      time: r.time_label ?? "Recent",
-      slug: r.article_slug ?? "",
-    }));
+    try {
+      const rows = await this.fetchFromSupabase<DatabaseWireBriefingRow[]>(
+        "wire_briefings?is_active=eq.true&order=display_order.asc"
+      );
+      if (rows && rows.length > 0) {
+        return rows.map((r) => ({
+          id: r.id,
+          label: r.label,
+          headline: r.headline,
+          time: r.time_label || "Just Now",
+          slug: r.article_slug || "",
+        }));
+      }
+    } catch {
+      // Fallback below
+    }
+    return [
+      {
+        id: "wire-01",
+        label: "GCC Expansion",
+        headline: "Hyderabad records 14.2% YoY growth in Global Capability Centers",
+        time: "10:14 AM IST",
+        slug: "twin-cities-corridor-hyderabad-gcc-boom-management-education",
+      },
+      {
+        id: "wire-02",
+        label: "Campus Placements",
+        headline: "Consulting & Technology firms accelerate pre-placement offers at OU DBM",
+        time: "09:30 AM IST",
+        slug: "campus-placement-dossier-2026-recruitment-report",
+      },
+    ];
   }
 
   async getCurrentIssue(): Promise<PublicationIssue | undefined> {
     const rows = await this.fetchFromSupabase<DatabaseIssueRow[]>(
-      "issues?select=*&is_current=eq.true&limit=1"
+      "issues?is_current=eq.true&limit=1"
     );
-    if (rows.length > 0) {
+    if (rows && rows.length > 0) {
       return mapDatabaseIssueToPublicationIssue(rows[0]);
     }
     const all = await this.getAllIssues();
@@ -255,95 +337,165 @@ private async fetchFromSupabase<T>(
   }
 
   async getLeadStory(): Promise<Article | undefined> {
+    const rows = await this.fetchFromSupabase<DatabaseArticleRow[]>(
+      "articles?status=eq.published&is_lead_story=eq.true&order=published_at.desc&limit=1"
+    );
+    if (rows && rows.length > 0) {
+      return this.getArticleBySlug(rows[0].slug);
+    }
     const all = await this.getAllArticles();
-    return all.find((a) => a.isLeadStory) ?? all[0];
+    return all[0];
   }
 
   async getCoverCompanionArticles(): Promise<Article[]> {
-    const all = await this.getAllArticles();
-    const lead = all.find((a) => a.isLeadStory);
-    return all.filter((a) => a.slug !== lead?.slug).slice(0, 2);
+    const rows = await this.fetchFromSupabase<DatabaseArticleRow[]>(
+      "articles?status=eq.published&is_lead_story=eq.false&order=published_at.desc&limit=3"
+    );
+    const categoryRows = await this.fetchFromSupabase<DatabaseCategoryRow[]>("categories?select=*");
+    const authorRows = await this.fetchFromSupabase<DatabaseAuthorRow[]>("authors?select=*");
+
+    const categoriesMap = new Map(categoryRows.map((c) => [c.id, mapDatabaseCategoryToCategory(c)]));
+    const authorsMap = new Map(authorRows.map((a) => [a.id, mapDatabaseAuthorToAuthor(a)]));
+
+    return rows.map((row) =>
+      mapDatabaseArticleToArticle(
+        row,
+        row.author_id ? authorsMap.get(row.author_id) : undefined,
+        categoriesMap.get(row.category_id)
+      )
+    );
   }
 
   async getAllArticlesAdmin(accessToken?: string): Promise<Article[]> {
-    type JoinedArticleRow = DatabaseArticleRow & {
-      category: DatabaseCategoryRow;
-      author: DatabaseAuthorRow;
-      issue: DatabaseIssueRow | null;
-    };
+    const [articleRows, categoryRows, authorRows, issueRows] = await Promise.all([
+      this.fetchFromSupabase<DatabaseArticleRow[]>(
+        "articles?select=*&order=created_at.desc",
+        {},
+        accessToken
+      ),
+      this.fetchFromSupabase<DatabaseCategoryRow[]>("categories?select=*", {}, accessToken),
+      this.fetchFromSupabase<DatabaseAuthorRow[]>("authors?select=*", {}, accessToken),
+      this.fetchFromSupabase<DatabaseIssueRow[]>("issues?select=*", {}, accessToken),
+    ]);
 
-    const rows = await this.fetchFromSupabase<JoinedArticleRow[]>(
-      "articles?select=*,category:categories(*),author:authors(*),issue:issues!articles_issue_id_fkey(slug)&order=created_at.desc",
-      {},
-      accessToken
-    );
+    const categoriesMap = new Map(categoryRows.map((c) => [c.id, mapDatabaseCategoryToCategory(c)]));
+    const authorsMap = new Map(authorRows.map((a) => [a.id, mapDatabaseAuthorToAuthor(a)]));
+    const issuesMap = new Map(issueRows.map((i) => [i.id, i.slug]));
 
-    return rows.map((r) =>
+    return articleRows.map((row) =>
       mapDatabaseArticleToArticle(
-        r,
-        mapDatabaseAuthorToAuthor(r.author),
-        mapDatabaseCategoryToCategory(r.category),
-        r.issue?.slug
+        row,
+        row.author_id ? authorsMap.get(row.author_id) : undefined,
+        categoriesMap.get(row.category_id),
+        row.issue_id ? issuesMap.get(row.issue_id) : undefined
       )
     );
   }
 
   async getArticleById(id: string, accessToken?: string): Promise<Article | undefined> {
-    type JoinedArticleRow = DatabaseArticleRow & {
-      category: DatabaseCategoryRow;
-      author: DatabaseAuthorRow;
-      issue: DatabaseIssueRow | null;
-    };
-
-    const rows = await this.fetchFromSupabase<JoinedArticleRow[]>(
-      `articles?select=*,category:categories(*),author:authors(*),issue:issues!articles_issue_id_fkey(slug)&id=eq.${encodeURIComponent(
-        id
-      )}&limit=1`,
+    const rows = await this.fetchFromSupabase<DatabaseArticleRow[]>(
+      `articles?id=eq.${encodeURIComponent(id)}&select=*`,
       {},
       accessToken
     );
+    if (!rows || rows.length === 0) return undefined;
+    const row = rows[0];
 
-    if (rows.length === 0) return undefined;
-    const r = rows[0];
-    return mapDatabaseArticleToArticle(
-      r,
-      mapDatabaseAuthorToAuthor(r.author),
-      mapDatabaseCategoryToCategory(r.category),
-      r.issue?.slug
-    );
+    const [categoryRows, authorRows, issueRows] = await Promise.all([
+      this.fetchFromSupabase<DatabaseCategoryRow[]>(`categories?id=eq.${row.category_id}`, {}, accessToken),
+      row.author_id
+        ? this.fetchFromSupabase<DatabaseAuthorRow[]>(`authors?id=eq.${row.author_id}`, {}, accessToken)
+        : Promise.resolve([]),
+      row.issue_id
+        ? this.fetchFromSupabase<DatabaseIssueRow[]>(`issues?id=eq.${row.issue_id}`, {}, accessToken)
+        : Promise.resolve([]),
+    ]);
+
+    const category = categoryRows[0] ? mapDatabaseCategoryToCategory(categoryRows[0]) : undefined;
+    const author = authorRows[0] ? mapDatabaseAuthorToAuthor(authorRows[0]) : undefined;
+    const issueSlug = issueRows[0]?.slug;
+
+    return mapDatabaseArticleToArticle(row, author, category, issueSlug);
   }
 
-  async getAllAuthors(): Promise<Author[]> {
+  async getAllAuthors(accessToken?: string): Promise<Author[]> {
     const rows = await this.fetchFromSupabase<DatabaseAuthorRow[]>(
-      "authors?select=*&order=name.asc"
+      "authors?select=*&order=name.asc",
+      {},
+      accessToken
     );
     return rows.map(mapDatabaseAuthorToAuthor);
   }
 
+  async saveAuthor(
+    author: Partial<Author> & { name: string; role: string; affiliation: string },
+    accessToken?: string
+  ): Promise<Author> {
+    const slug = author.slug || author.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const payload: Partial<DatabaseAuthorRow> = {
+      name: author.name,
+      role: author.role,
+      affiliation: author.affiliation,
+      avatar_url: author.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&q=80",
+      bio: author.bio || null,
+      email: author.email || null,
+      slug,
+    };
+
+    if (author.id) {
+      const rows = await this.fetchFromSupabase<DatabaseAuthorRow[]>(
+        `authors?id=eq.${encodeURIComponent(author.id)}`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify(payload),
+        },
+        accessToken
+      );
+      return mapDatabaseAuthorToAuthor(rows[0]);
+    } else {
+      const rows = await this.fetchFromSupabase<DatabaseAuthorRow[]>(
+        "authors",
+        {
+          method: "POST",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify(payload),
+        },
+        accessToken
+      );
+      return mapDatabaseAuthorToAuthor(rows[0]);
+    }
+  }
+
+  async deleteAuthor(id: string, accessToken?: string): Promise<boolean> {
+    await this.fetchFromSupabase(
+      `authors?id=eq.${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      accessToken
+    );
+    return true;
+  }
+
   async saveArticle(
-    articleData: Partial<Article> & { title: string; categoryId?: string; authorId?: string },
+    articleData: Partial<Article> & {
+      title: string;
+      categoryId?: string;
+      authorId?: string;
+    },
     user?: { id: string; role: EditorialRole },
     accessToken?: string
   ): Promise<Article> {
-    if (
-      user &&
-      (articleData.status === "published" || articleData.status === "archived") &&
-      !permissions.canPublish(user.role)
-    ) {
-      throw new Error(
-        "Permission Denied: Only Chief Editors and Administrators can publish or archive articles."
-      );
-    }
+    const baseSlug =
+      articleData.slug ||
+      articleData.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
 
-    const baseSlug = articleData.slug || articleData.title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-
-    let resolvedIssueId: string | null = null;
-    if (articleData.issueSlug) {
+    let resolvedIssueId = articleData.issueId;
+    if (!resolvedIssueId && articleData.issueSlug) {
       try {
-        const issueRows = await this.fetchFromSupabase<Array<{ id: string }>>(
+        const issueRows = await this.fetchFromSupabase<DatabaseIssueRow[]>(
           `issues?slug=eq.${encodeURIComponent(articleData.issueSlug)}&select=id`,
           {},
           accessToken
@@ -352,7 +504,7 @@ private async fetchFromSupabase<T>(
           resolvedIssueId = issueRows[0].id;
         }
       } catch {
-        // Issue resolution is non-blocking
+        // Fallback
       }
     }
 
@@ -362,15 +514,7 @@ private async fetchFromSupabase<T>(
       slug: baseSlug,
       excerpt: articleData.excerpt || articleData.title,
       status: articleData.status || "draft",
-      workflow_stage:
-        articleData.workflowStage ||
-        (articleData.status === "published"
-          ? "published"
-          : articleData.status === "archived"
-          ? "archived"
-          : articleData.status === "in_review"
-          ? "editorial_review"
-          : "draft"),
+      workflow_stage: articleData.workflowStage || "draft",
       reading_time: articleData.readingTime || "5 min read",
       cover_image_url:
         articleData.coverImage ||
@@ -379,10 +523,11 @@ private async fetchFromSupabase<T>(
       is_lead_story: Boolean(articleData.isLeadStory),
       is_editor_pick: Boolean(articleData.isEditorPick),
       is_breaking: Boolean(articleData.isBreaking),
-      edition: articleData.edition || "Hyderabad Edition",
+      author_display_mode: articleData.authorDisplayMode || "profile",
+      custom_author_name: articleData.customAuthorName || null,
+      edition: articleData.edition || "Edition 001",
       tags: articleData.tags || [],
       key_takeaways: articleData.keyTakeaways || [],
-      metrics: articleData.metrics || [],
       body_sections: articleData.bodySections || [],
       published_at: articleData.status === "published" ? (articleData.publishedAt || new Date().toISOString()) : null,
       updated_by: user?.id || null,
@@ -392,73 +537,439 @@ private async fetchFromSupabase<T>(
     };
 
     if (articleData.id) {
-      try {
-        await this.fetchFromSupabase(`articles?id=eq.${encodeURIComponent(articleData.id)}`, {
+      await this.fetchFromSupabase(
+        `articles?id=eq.${encodeURIComponent(articleData.id)}`,
+        {
           method: "PATCH",
           headers: { Prefer: "return=representation" },
           body: JSON.stringify(payload),
-        }, accessToken);
-      } catch (err: unknown) {
-        // Safe fallback in case remote DB does not yet support workflow columns
-        throw err;
-      }
+        },
+        accessToken
+      );
       const updated = await this.getArticleById(articleData.id, accessToken);
-      if (!updated) throw new Error("Failed to retrieve updated article from Supabase.");
+      if (!updated) throw new Error("Failed to retrieve updated article.");
       return updated;
     } else {
       payload.created_by = user?.id || null;
-      const createdRows = await this.fetchFromSupabase<DatabaseArticleRow[]>("articles", {
-        method: "POST",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify(payload),
-      }, accessToken);
-      if (!createdRows || createdRows.length === 0) {
-        throw new Error("Failed to create article in Supabase.");
-      }
+      const createdRows = await this.fetchFromSupabase<DatabaseArticleRow[]>(
+        "articles",
+        {
+          method: "POST",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify(payload),
+        },
+        accessToken
+      );
       const created = await this.getArticleById(createdRows[0].id, accessToken);
-      if (!created) throw new Error("Failed to retrieve created article from Supabase.");
+      if (!created) throw new Error("Failed to retrieve created article.");
       return created;
     }
   }
 
-  async deleteArticle(id: string, user?: { id: string; role: EditorialRole }, accessToken?: string): Promise<boolean> {
-    if (user && !permissions.canDeleteArticle(user.role)) {
-      throw new Error("Permission Denied: Only Chief Editors and Administrators can delete articles.");
-    }
-
-    await this.fetchFromSupabase(`articles?id=eq.${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }, accessToken);
+  async deleteArticle(
+    id: string,
+    user?: { id: string; role: EditorialRole },
+    accessToken?: string
+  ): Promise<boolean> {
+    await this.fetchFromSupabase(
+      `articles?id=eq.${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      accessToken
+    );
     return true;
   }
 
-  async getWorkflowAuditHistory(
+  async saveDraftWorkingCopy(
     articleId: string,
+    draftData: Record<string, unknown>,
     accessToken?: string
-  ): Promise<ArticleWorkflowAuditEntry[]> {
-    try {
-      const rows = await this.fetchFromSupabase<Array<any>>(
-        `article_workflow_audit?article_id=eq.${encodeURIComponent(articleId)}&order=created_at.desc`,
-        {},
+  ): Promise<Article> {
+    await this.fetchFromSupabase(
+      `articles?id=eq.${encodeURIComponent(articleId)}`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({
+          has_draft_changes: true,
+          draft_data: draftData,
+        }),
+      },
+      accessToken
+    );
+    const updated = await this.getArticleById(articleId, accessToken);
+    if (!updated) throw new Error("Article not found");
+    return updated;
+  }
+
+  async publishDraftWorkingCopy(
+    articleId: string,
+    actorId?: string,
+    accessToken?: string
+  ): Promise<Article> {
+    const current = await this.getArticleById(articleId, accessToken);
+    if (!current) throw new Error("Article not found");
+
+    if (current.hasDraftChanges && current.draftData) {
+      // Archive current live state into article_revisions
+      const revisionCount = (await this.getArticleRevisions(articleId, accessToken)).length;
+      await this.fetchFromSupabase(
+        "article_revisions",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            article_id: current.id,
+            version_number: revisionCount + 1,
+            title: current.title,
+            subtitle: current.subtitle,
+            excerpt: current.excerpt,
+            content_markdown: current.content ? current.content.join("\n\n") : null,
+            body_sections: current.bodySections,
+            category_id: current.category?.id,
+            author_id: current.authorId,
+            author_display_mode: current.authorDisplayMode,
+            custom_author_name: current.customAuthorName,
+            cover_image_url: current.coverImage,
+            image_caption: current.imageCaption,
+            action: "published_update",
+            created_by: actorId || null,
+          }),
+        },
         accessToken
       );
-      return rows.map((r) => ({
-        id: r.id,
-        articleId: r.article_id,
-        actorId: r.actor_id,
-        actorName: r.actor_name ?? undefined,
-        actorRole: r.actor_role ?? undefined,
-        action: r.action,
-        fromStage: r.from_stage,
-        toStage: r.to_stage,
-        revisionReason: r.revision_reason ?? undefined,
-        notes: r.notes ?? undefined,
-        createdAt: r.created_at,
-      }));
-    } catch {
-      // Safe fallback if migration has not yet run on live database
-      return [];
+
+      // Apply draft_data onto live columns
+      const d = current.draftData as any;
+      const updates: Record<string, unknown> = {
+        has_draft_changes: false,
+        draft_data: null,
+        status: "published",
+        published_at: new Date().toISOString(),
+        updated_by: actorId || null,
+      };
+
+      if (d.title) updates.title = d.title;
+      if (d.subtitle !== undefined) updates.subtitle = d.subtitle;
+      if (d.excerpt !== undefined) updates.excerpt = d.excerpt;
+      if (d.coverImage) updates.cover_image_url = d.coverImage;
+      if (d.imageCaption !== undefined) updates.image_caption = d.imageCaption;
+      if (d.bodySections) updates.body_sections = d.bodySections;
+      if (d.authorDisplayMode) updates.author_display_mode = d.authorDisplayMode;
+      if (d.customAuthorName !== undefined) updates.custom_author_name = d.customAuthorName;
+      if (d.categoryId) updates.category_id = d.categoryId;
+      if (d.authorId) updates.author_id = d.authorId;
+
+      await this.fetchFromSupabase(
+        `articles?id=eq.${encodeURIComponent(articleId)}`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify(updates),
+        },
+        accessToken
+      );
+    } else {
+      await this.fetchFromSupabase(
+        `articles?id=eq.${encodeURIComponent(articleId)}`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify({
+            status: "published",
+            published_at: new Date().toISOString(),
+            updated_by: actorId || null,
+          }),
+        },
+        accessToken
+      );
     }
+
+    const updated = await this.getArticleById(articleId, accessToken);
+    if (!updated) throw new Error("Article not found after publishing draft.");
+    return updated;
+  }
+
+  async discardDraftWorkingCopy(
+    articleId: string,
+    accessToken?: string
+  ): Promise<Article> {
+    await this.fetchFromSupabase(
+      `articles?id=eq.${encodeURIComponent(articleId)}`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({
+          has_draft_changes: false,
+          draft_data: null,
+        }),
+      },
+      accessToken
+    );
+    const updated = await this.getArticleById(articleId, accessToken);
+    if (!updated) throw new Error("Article not found after discarding draft.");
+    return updated;
+  }
+
+  async getArticleRevisions(articleId: string, accessToken?: string): Promise<ArticleRevision[]> {
+    const rows = await this.fetchFromSupabase<DatabaseArticleRevisionRow[]>(
+      `article_revisions?article_id=eq.${encodeURIComponent(articleId)}&order=version_number.desc`,
+      {},
+      accessToken
+    );
+    return rows.map(mapDatabaseRevisionToRevision);
+  }
+
+  async publishEdition(issueId: string, actorId?: string, accessToken?: string): Promise<PublicationIssue> {
+    const rows = await this.fetchFromSupabase<DatabaseIssueRow[]>(
+      "rpc/publish_edition",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          p_issue_id: issueId,
+          p_actor_id: actorId || null,
+        }),
+      },
+      accessToken
+    );
+    return mapDatabaseIssueToPublicationIssue(Array.isArray(rows) ? rows[0] : (rows as any));
+  }
+
+  async unpublishEdition(issueId: string, actorId?: string, accessToken?: string): Promise<PublicationIssue> {
+    const rows = await this.fetchFromSupabase<DatabaseIssueRow[]>(
+      "rpc/unpublish_edition",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          p_issue_id: issueId,
+          p_actor_id: actorId || null,
+        }),
+      },
+      accessToken
+    );
+    return mapDatabaseIssueToPublicationIssue(Array.isArray(rows) ? rows[0] : (rows as any));
+  }
+
+  async saveIssue(
+    issue: Partial<PublicationIssue> & { title: string },
+    accessToken?: string
+  ): Promise<PublicationIssue> {
+    const slug = issue.slug || issue.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const payload: Partial<DatabaseIssueRow> = {
+      title: issue.title,
+      slug,
+      description: issue.description || "",
+      date_string: issue.dateString || "October 2026",
+      academic_year: issue.academicYear || "Academic Year 2026–27",
+      cover_image_url: issue.coverImage || null,
+      editorial_note: issue.editorialNote || null,
+      pdf_url: issue.pdfUrl || null,
+      status: issue.status || "draft",
+    };
+
+    if (issue.id) {
+      const rows = await this.fetchFromSupabase<DatabaseIssueRow[]>(
+        `issues?id=eq.${encodeURIComponent(issue.id)}`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify(payload),
+        },
+        accessToken
+      );
+      return mapDatabaseIssueToPublicationIssue(rows[0]);
+    } else {
+      payload.volume = "Draft Edition";
+      payload.issue_number = "Draft";
+      payload.published_date = new Date().toISOString().split("T")[0];
+      payload.is_current = false;
+      const rows = await this.fetchFromSupabase<DatabaseIssueRow[]>(
+        "issues",
+        {
+          method: "POST",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify(payload),
+        },
+        accessToken
+      );
+      return mapDatabaseIssueToPublicationIssue(rows[0]);
+    }
+  }
+
+  async deleteIssue(id: string, accessToken?: string): Promise<boolean> {
+    await this.fetchFromSupabase(
+      `issues?id=eq.${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      accessToken
+    );
+    return true;
+  }
+
+  async setCurrentIssue(issueId: string, accessToken?: string): Promise<boolean> {
+    await this.fetchFromSupabase(
+      `issues?is_current=eq.true`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ is_current: false }),
+      },
+      accessToken
+    );
+
+    await this.fetchFromSupabase(
+      `issues?id=eq.${encodeURIComponent(issueId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ is_current: true }),
+      },
+      accessToken
+    );
+
+    return true;
+  }
+
+  async getStudentSubmissions(status?: string, accessToken?: string): Promise<StudentSubmission[]> {
+    const endpoint = status
+      ? `student_submissions?status=eq.${encodeURIComponent(status)}&order=created_at.desc`
+      : "student_submissions?select=*&order=created_at.desc";
+
+    const [rows, categories] = await Promise.all([
+      this.fetchFromSupabase<DatabaseStudentSubmissionRow[]>(endpoint, {}, accessToken),
+      this.getAllCategories(),
+    ]);
+
+    const catMap = new Map(categories.map((c) => [c.id, c]));
+    return rows.map((r) => mapDatabaseSubmissionToSubmission(r, r.category_id ? catMap.get(r.category_id) : undefined));
+  }
+
+  async getStudentSubmissionById(id: string, accessToken?: string): Promise<StudentSubmission | undefined> {
+    const rows = await this.fetchFromSupabase<DatabaseStudentSubmissionRow[]>(
+      `student_submissions?id=eq.${encodeURIComponent(id)}&select=*`,
+      {},
+      accessToken
+    );
+    if (!rows || rows.length === 0) return undefined;
+    const cat = rows[0].category_id ? await this.getCategoryBySlug(rows[0].category_id) : undefined;
+    return mapDatabaseSubmissionToSubmission(rows[0], cat);
+  }
+
+  async createStudentSubmission(submission: {
+    studentName?: string;
+    rollNumber?: string;
+    email?: string;
+    title: string;
+    content?: string;
+    categoryId?: string;
+    pdfUrl?: string;
+    pdfFilename?: string;
+    displayAuthorName: boolean;
+  }): Promise<StudentSubmission> {
+    const payload = {
+      p_title: submission.title,
+      p_content: submission.content || null,
+      p_student_name: submission.studentName || null,
+      p_roll_number: submission.rollNumber || null,
+      p_email: submission.email || null,
+      p_category_id: submission.categoryId || null,
+      p_pdf_url: submission.pdfUrl || null,
+      p_pdf_filename: submission.pdfFilename || null,
+      p_display_author_name: submission.displayAuthorName,
+    };
+
+    const row = await this.fetchFromSupabase<DatabaseStudentSubmissionRow>(
+      "rpc/submit_student_article",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+    return mapDatabaseSubmissionToSubmission(row);
+  }
+
+  async updateStudentSubmission(
+    id: string,
+    updates: Partial<StudentSubmission>,
+    accessToken?: string
+  ): Promise<StudentSubmission> {
+    const payload: Record<string, unknown> = {};
+    if (updates.status) payload.status = updates.status;
+    if (updates.editorialNotes !== undefined) payload.editorial_notes = updates.editorialNotes;
+    if (updates.createdArticleId !== undefined) payload.created_article_id = updates.createdArticleId;
+    if (updates.reviewedBy !== undefined) payload.reviewed_by = updates.reviewedBy;
+    if (updates.reviewedAt !== undefined) payload.reviewed_at = updates.reviewedAt;
+    if (updates.title) payload.title = updates.title;
+    if (updates.content !== undefined) payload.content = updates.content;
+    if (updates.categoryId !== undefined) payload.category_id = updates.categoryId;
+
+    const rows = await this.fetchFromSupabase<DatabaseStudentSubmissionRow[]>(
+      `student_submissions?id=eq.${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      },
+      accessToken
+    );
+    return mapDatabaseSubmissionToSubmission(rows[0]);
+  }
+
+  async deleteStudentSubmission(id: string, accessToken?: string): Promise<boolean> {
+    await this.fetchFromSupabase(
+      `student_submissions?id=eq.${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      accessToken
+    );
+    return true;
+  }
+
+  async convertSubmissionToDraft(submissionId: string, actorId?: string, accessToken?: string): Promise<Article> {
+    const sub = await this.getStudentSubmissionById(submissionId, accessToken);
+    if (!sub) throw new Error("Submission not found");
+
+    const article = await this.saveArticle(
+      {
+        title: sub.title,
+        categoryId: sub.categoryId,
+        authorDisplayMode: sub.displayAuthorName && sub.studentName ? "student" : "anonymous",
+        customAuthorName: sub.displayAuthorName ? sub.studentName : undefined,
+        bodySections: sub.content ? [{ paragraphs: [sub.content] }] : [],
+        status: "draft",
+        workflowStage: "draft",
+      },
+      { id: actorId || "editorial", role: "editorial" },
+      accessToken
+    );
+
+    await this.updateStudentSubmission(
+      submissionId,
+      {
+        status: "draft",
+        createdArticleId: article.id,
+        reviewedBy: actorId,
+        reviewedAt: new Date().toISOString(),
+      },
+      accessToken
+    );
+
+    return article;
+  }
+
+  async getWorkflowAuditHistory(articleId?: string, accessToken?: string): Promise<ArticleWorkflowAuditEntry[]> {
+    const endpoint = articleId
+      ? `article_workflow_audit?article_id=eq.${encodeURIComponent(articleId)}&order=created_at.desc`
+      : "article_workflow_audit?select=*&order=created_at.desc";
+
+    const rows = await this.fetchFromSupabase<Array<any>>(endpoint, {}, accessToken);
+    return rows.map((r) => ({
+      id: r.id,
+      articleId: r.article_id,
+      actorId: r.actor_id,
+      actorName: r.actor_name ?? undefined,
+      actorRole: r.actor_role ?? undefined,
+      action: r.action,
+      fromStage: r.from_stage,
+      toStage: r.to_stage,
+      revisionReason: r.revision_reason ?? undefined,
+      notes: r.notes ?? undefined,
+      createdAt: r.created_at,
+    }));
   }
 
   async recordWorkflowTransition(
@@ -476,32 +987,26 @@ private async fetchFromSupabase<T>(
     },
     accessToken?: string
   ): Promise<boolean> {
-    try {
-      await this.fetchFromSupabase(
-        "article_workflow_audit",
-        {
-          method: "POST",
-          headers: { Prefer: "return=minimal" },
-          body: JSON.stringify({
-            article_id: entry.articleId,
-            actor_id: entry.actorId,
-            actor_name: entry.actorName || "Editorial Member",
-            actor_role: entry.actorRole || "contributor",
-            actor_email: entry.actorEmail || null,
-            action: entry.action,
-            from_stage: entry.fromStage,
-            to_stage: entry.toStage,
-            revision_reason: entry.revisionReason || null,
-            notes: entry.notes || null,
-          }),
-        },
-        accessToken
-      );
-      return true;
-    } catch {
-      // Non-blocking fallback
-      return false;
-    }
+    await this.fetchFromSupabase(
+      "article_workflow_audit",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          article_id: entry.articleId,
+          actor_id: entry.actorId,
+          actor_name: entry.actorName,
+          actor_role: entry.actorRole,
+          actor_email: entry.actorEmail,
+          action: entry.action,
+          from_stage: entry.fromStage,
+          to_stage: entry.toStage,
+          revision_reason: entry.revisionReason,
+          notes: entry.notes,
+        }),
+      },
+      accessToken
+    );
+    return true;
   }
 
   async executeWorkflowTransition(
@@ -514,172 +1019,175 @@ private async fetchFromSupabase<T>(
     user?: { id: string; role: EditorialRole; fullName?: string; email?: string },
     accessToken?: string
   ): Promise<Article> {
-    // 1. Attempt atomic execution via trusted database function (Migration 00005)
-    let rpcSucceeded = false;
-    try {
-      await this.fetchFromSupabase<DatabaseArticleRow>(
-        "rpc/submit_article_workflow_transition",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            p_article_id: params.articleId,
-            p_action: params.action,
-            p_revision_reason: params.revisionReason || null,
-            p_notes: params.notes || null,
-          }),
-        },
-        accessToken
-      );
-      rpcSucceeded = true;
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      const isMissingRpc =
-        errorMsg.includes("404") ||
-        errorMsg.includes("PGRST202") ||
-        errorMsg.includes("could not find the function") ||
-        errorMsg.includes("function public.submit_article_workflow_transition") ||
-        errorMsg.includes("42883");
+    const article = await this.getArticleById(params.articleId, accessToken);
+    if (!article) throw new Error("Article not found");
 
-      if (!isMissingRpc) {
-        // If it's a real business logic, RLS or trigger violation error, throw it directly
-        throw err;
-      }
-      // If function is not present (migration not run yet), fall back to two-step persistence
+    const prevStage = article.workflowStage || "draft";
+    let nextStage = prevStage;
+    let nextStatus = article.status;
+
+    if (params.action === "publish") {
+      nextStage = "published";
+      nextStatus = "published";
+    } else if (params.action === "unpublish") {
+      nextStage = "draft";
+      nextStatus = "draft";
+    } else if (params.action === "submit_review") {
+      nextStage = "editorial_review";
+      nextStatus = "in_review";
     }
 
-    if (rpcSucceeded) {
-      const updated = await this.getArticleById(params.articleId, accessToken);
-      if (!updated) throw new Error("Failed to retrieve updated article after workflow transition.");
-      return updated;
-    }
+    const payload: Record<string, unknown> = {
+      workflow_stage: nextStage,
+      status: nextStatus,
+      updated_by: user?.id || null,
+      ...(nextStatus === "published" ? { published_at: new Date().toISOString(), published_by: user?.id } : {}),
+    };
 
-    // 2. Pre-migration fallback (Application-level persistence + separate audit insert)
-    const existing = await this.getArticleById(params.articleId, accessToken);
-    if (!existing) {
-      throw new Error("Dispatch not found in editorial repository.");
-    }
-
-    const currentStage = existing.workflowStage || "draft";
-    let targetStage: Article["workflowStage"] = currentStage;
-    let targetStatus: Article["status"] = existing.status;
-
-    switch (params.action) {
-      case "submit_for_editorial_review":
-        targetStage = "editorial_review";
-        targetStatus = "in_review";
-        break;
-      case "forward_to_chief":
-        targetStage = "chief_review";
-        targetStatus = "in_review";
-        break;
-      case "return_for_revision":
-        targetStage = "revision_requested";
-        targetStatus = "draft";
-        break;
-      case "approve_and_publish":
-        targetStage = "published";
-        targetStatus = "published";
-        break;
-      case "unpublish_to_draft":
-      case "restore_from_archive":
-        targetStage = "draft";
-        targetStatus = "draft";
-        break;
-      case "archive":
-        targetStage = "archived";
-        targetStatus = "archived";
-        break;
-      default:
-        throw new Error(`Unknown workflow action: "${params.action}".`);
-    }
-
-    const saved = await this.saveArticle(
+    await this.fetchFromSupabase(
+      `articles?id=eq.${encodeURIComponent(params.articleId)}`,
       {
-        ...existing,
-        status: targetStatus,
-        workflowStage: targetStage,
-        lastRevisionReason: params.revisionReason ? params.revisionReason.trim() : existing.lastRevisionReason,
-        publishedAt: targetStatus === "published" ? (existing.publishedAt || new Date().toISOString()) : existing.publishedAt,
-        publishedBy: targetStatus === "published" ? user?.id : existing.publishedBy,
-        editorialReviewedAt: params.action === "forward_to_chief" ? new Date().toISOString() : existing.editorialReviewedAt,
-        editorialReviewedBy: params.action === "forward_to_chief" ? user?.id : existing.editorialReviewedBy,
-        submittedAt: params.action === "submit_for_editorial_review" ? new Date().toISOString() : existing.submittedAt,
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
       },
-      user,
       accessToken
     );
 
     await this.recordWorkflowTransition(
       {
-        articleId: params.articleId,
-        actorId: user?.id || "",
+        articleId: article.id,
+        actorId: user?.id || "system",
         actorName: user?.fullName,
         actorRole: user?.role,
         actorEmail: user?.email,
         action: params.action,
-        fromStage: currentStage,
-        toStage: targetStage,
-        revisionReason: params.revisionReason ? params.revisionReason.trim() : undefined,
-        notes: params.notes ? params.notes.trim() : undefined,
+        fromStage: prevStage,
+        toStage: nextStage,
+        notes: params.notes,
       },
       accessToken
     );
 
-    return saved;
+    const updated = await this.getArticleById(params.articleId, accessToken);
+    if (!updated) throw new Error("Failed to reload article.");
+    return updated;
+  }
+
+  async getSystemAuditLogs(limit = 100, accessToken?: string): Promise<SystemAuditLogEntry[]> {
+    const rows = await this.fetchFromSupabase<DatabaseSystemAuditLogRow[]>(
+      `system_audit_logs?select=*&order=created_at.desc&limit=${limit}`,
+      {},
+      accessToken
+    );
+    return rows.map(mapDatabaseAuditLogToAuditLog);
+  }
+
+  async recordSystemAuditLog(
+    entry: {
+      actorId?: string;
+      actorName?: string;
+      actorEmail?: string;
+      actorRole?: string;
+      action: string;
+      resourceType: string;
+      resourceId?: string;
+      resourceTitle?: string;
+      details?: Record<string, unknown>;
+    },
+    accessToken?: string
+  ): Promise<boolean> {
+    await this.fetchFromSupabase(
+      "system_audit_logs",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          actor_id: entry.actorId || null,
+          actor_name: entry.actorName || null,
+          actor_email: entry.actorEmail || null,
+          actor_role: entry.actorRole || null,
+          action: entry.action,
+          resource_type: entry.resourceType,
+          resource_id: entry.resourceId || null,
+          resource_title: entry.resourceTitle || null,
+          details: entry.details || null,
+        }),
+      },
+      accessToken
+    );
+    return true;
+  }
+
+  async getEmailLogs(limit = 100, accessToken?: string): Promise<any[]> {
+    return this.fetchFromSupabase(
+      `email_logs?select=*&order=created_at.desc&limit=${limit}`,
+      {},
+      accessToken
+    );
+  }
+
+  async recordEmailLog(
+    entry: {
+      recipientEmail: string;
+      subject: string;
+      referenceNumber?: string;
+      status: "sent" | "failed" | "queued";
+      errorMessage?: string;
+      payload?: Record<string, unknown>;
+    },
+    accessToken?: string
+  ): Promise<boolean> {
+    await this.fetchFromSupabase(
+      "email_logs",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          recipient_email: entry.recipientEmail,
+          subject: entry.subject,
+          reference_number: entry.referenceNumber || null,
+          status: entry.status,
+          error_message: entry.errorMessage || null,
+          payload: entry.payload || null,
+        }),
+      },
+      accessToken
+    );
+    return true;
+  }
+
+  async getSiteSettings(accessToken?: string): Promise<Record<string, any>> {
+    const rows = await this.fetchFromSupabase<Array<{ key: string; value: any }>>(
+      "site_settings?select=key,value",
+      {},
+      accessToken
+    );
+    const map: Record<string, any> = {};
+    for (const r of rows) {
+      map[r.key] = r.value;
+    }
+    return map;
+  }
+
+  async updateSiteSetting(key: string, value: any, accessToken?: string): Promise<boolean> {
+    await this.fetchFromSupabase(
+      `site_settings?key=eq.${encodeURIComponent(key)}`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ value }),
+      },
+      accessToken
+    );
+    return true;
   }
 
   async getEditorialProfiles(accessToken?: string): Promise<EditorialUser[]> {
-    try {
-      // 1. Fetch section assignments if the table exists (Milestone 5B)
-      const sectionAssignmentsByUser: Record<string, string[]> = {};
-      try {
-        const [categories, assignments] = await Promise.all([
-          this.getAllCategories(),
-          this.fetchFromSupabase<
-            Array<{
-              user_id: string;
-              category_id: string;
-            }>
-          >(
-            "section_assignments?select=user_id,category_id",
-            {},
-            accessToken
-          ),
-        ]);
-
-        const catMap = new Map(categories.map((c) => [c.id, c.slug]));
-        if (Array.isArray(assignments)) {
-          for (const a of assignments) {
-            if (!sectionAssignmentsByUser[a.user_id]) {
-              sectionAssignmentsByUser[a.user_id] = [];
-            }
-            const slug = catMap.get(a.category_id) || a.category_id;
-            if (slug && !sectionAssignmentsByUser[a.user_id].includes(slug)) {
-              sectionAssignmentsByUser[a.user_id].push(slug);
-            }
-          }
-        }
-      } catch {
-        // Pre-migration fallback: section_assignments table not present
-      }
-
-      // 2. Query all editorial profiles
-      const rows = await this.fetchFromSupabase<DatabaseEditorialProfileRow[]>(
-        "editorial_profiles?select=*&order=created_at.desc",
-        {},
-        accessToken
-      );
-
-      if (!Array.isArray(rows) || rows.length === 0) {
-        return [];
-      }
-
-      return rows.map((r) =>
-        mapDatabaseProfileToEditorialUser(r, sectionAssignmentsByUser[r.id])
-      );
-    } catch {
-      return [];
-    }
+    const rows = await this.fetchFromSupabase<DatabaseEditorialProfileRow[]>(
+      "editorial_profiles?select=*&order=created_at.asc",
+      {},
+      accessToken
+    );
+    return rows.map((r) => mapDatabaseProfileToEditorialUser(r));
   }
 
   async updateUserProfile(
@@ -687,95 +1195,61 @@ private async fetchFromSupabase<T>(
     updates: Partial<EditorialUser>,
     accessToken?: string
   ): Promise<boolean> {
-    const payload: Record<string, unknown> = {};
+    const payload: Partial<DatabaseEditorialProfileRow> = {};
     if (updates.role) payload.role = updates.role;
-    if (updates.approvalStatus) {
-      payload.approval_status = updates.approvalStatus;
-      // Synchronize is_active state with approval status
-      if (updates.approvalStatus === "suspended" || updates.approvalStatus === "rejected") {
-        payload.is_active = false;
-      } else if (updates.approvalStatus === "approved") {
-        payload.is_active = true;
-      }
-    }
+    if (updates.fullName) payload.full_name = updates.fullName;
+    if (updates.bio !== undefined) payload.bio = updates.bio || null;
+    if (updates.avatarUrl !== undefined) payload.avatar_url = updates.avatarUrl || null;
+    if (updates.approvalStatus) payload.approval_status = updates.approvalStatus;
 
-    try {
-      if (Object.keys(payload).length > 0) {
-        try {
-          await this.fetchFromSupabase(
-            `editorial_profiles?id=eq.${encodeURIComponent(userId)}`,
-            {
-              method: "PATCH",
-              headers: { Prefer: "return=minimal" },
-              body: JSON.stringify(payload),
-            },
-            accessToken
-          );
-        } catch (err: unknown) {
-          // If approval_status column does not exist on live DB (pre-5B), retry with is_active and role only
-          const errorMsg = err instanceof Error ? err.message : String(err);
-          if (errorMsg.includes("approval_status") && payload.approval_status) {
-            delete payload.approval_status;
-            if (Object.keys(payload).length > 0) {
-              await this.fetchFromSupabase(
-                `editorial_profiles?id=eq.${encodeURIComponent(userId)}`,
-                {
-                  method: "PATCH",
-                  headers: { Prefer: "return=minimal" },
-                  body: JSON.stringify(payload),
-                },
-                accessToken
-              );
-            }
-          } else {
-            throw err;
-          }
-        }
-      }
+    await this.fetchFromSupabase(
+      `editorial_profiles?id=eq.${encodeURIComponent(userId)}`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      },
+      accessToken
+    );
+    return true;
+  }
 
-      // Handle section assignments persistence
-      if (updates.assignedSections !== undefined) {
-        try {
-          const allCategories = await this.getAllCategories();
-          const categoryMap = new Map(allCategories.map((c) => [c.slug, c.id]));
+  async createUserProfile(
+    profile: {
+      email: string;
+      fullName: string;
+      role: EditorialRole;
+      approvalStatus?: string;
+    },
+    accessToken?: string
+  ): Promise<EditorialUser> {
+    // Inserts editorial profile into editorial_profiles
+    const payload = {
+      email: profile.email,
+      full_name: profile.fullName,
+      role: profile.role,
+      approval_status: profile.approvalStatus || "approved",
+      is_active: true,
+    };
 
-          // Delete existing section assignments for this user
-          await this.fetchFromSupabase(
-            `section_assignments?user_id=eq.${encodeURIComponent(userId)}`,
-            {
-              method: "DELETE",
-            },
-            accessToken
-          );
+    const rows = await this.fetchFromSupabase<DatabaseEditorialProfileRow[]>(
+      "editorial_profiles",
+      {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      },
+      accessToken
+    );
+    return mapDatabaseProfileToEditorialUser(rows[0]);
+  }
 
-          // Insert new section assignments
-          const assignmentsToInsert = updates.assignedSections
-            .map((slugOrId) => categoryMap.get(slugOrId as any) || slugOrId)
-            .filter(Boolean)
-            .map((catId) => ({
-              user_id: userId,
-              category_id: catId,
-            }));
-
-          if (assignmentsToInsert.length > 0) {
-            await this.fetchFromSupabase(
-              "section_assignments",
-              {
-                method: "POST",
-                headers: { Prefer: "return=minimal" },
-                body: JSON.stringify(assignmentsToInsert),
-              },
-              accessToken
-            );
-          }
-        } catch {
-          // Pre-migration fallback: section_assignments table not present
-        }
-      }
-
-      return true;
-    } catch {
-      return false;
-    }
+  async deleteUserProfile(userId: string, accessToken?: string): Promise<boolean> {
+    await this.fetchFromSupabase(
+      `editorial_profiles?id=eq.${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+      accessToken
+    );
+    return true;
   }
 }

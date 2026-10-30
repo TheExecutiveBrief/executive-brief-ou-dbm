@@ -13,6 +13,7 @@ export interface Category {
   description: string;
   deskNumber: string;
   accentColor?: "crimson" | "brass" | "forest";
+  displayOrder?: number;
 }
 
 export interface Author {
@@ -22,6 +23,8 @@ export interface Author {
   affiliation: string; // e.g. "MBA Class of 2025", "Professor of Finance, OU DBM"
   avatar: string;
   bio?: string;
+  email?: string;
+  slug?: string;
 }
 
 export interface ArticleSection {
@@ -61,6 +64,62 @@ export interface ArticleWorkflowAuditEntry {
   createdAt: string;
 }
 
+export interface SystemAuditLogEntry {
+  id: string;
+  actorId?: string;
+  actorName?: string;
+  actorEmail?: string;
+  actorRole?: string;
+  action: string;
+  resourceType: string;
+  resourceId?: string;
+  resourceTitle?: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface StudentSubmission {
+  id: string;
+  referenceNumber: string;
+  studentName?: string;
+  rollNumber?: string;
+  email?: string;
+  title: string;
+  content?: string;
+  categoryId?: string;
+  category?: Category;
+  pdfUrl?: string;
+  pdfFilename?: string;
+  displayAuthorName: boolean;
+  status: "pending" | "under_review" | "approved" | "rejected" | "draft" | "published";
+  editorialNotes?: string;
+  createdArticleId?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ArticleRevision {
+  id: string;
+  articleId: string;
+  versionNumber: number;
+  title: string;
+  subtitle?: string;
+  excerpt?: string;
+  contentMarkdown?: string;
+  bodySections?: ArticleSection[];
+  categoryId?: string;
+  authorId?: string;
+  authorDisplayMode?: "profile" | "student" | "anonymous" | "none";
+  customAuthorName?: string;
+  coverImageUrl?: string;
+  imageCaption?: string;
+  action: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
 export interface Article {
   id: string;
   slug: string;
@@ -69,6 +128,9 @@ export interface Article {
   excerpt: string;
   category: Category;
   author: Author;
+  authorId?: string;
+  authorDisplayMode?: "profile" | "student" | "anonymous" | "none";
+  customAuthorName?: string;
   publishedAt: string;
   readingTime: string;
   coverImage: string;
@@ -78,8 +140,11 @@ export interface Article {
   isBreaking?: boolean;
   edition?: string;
   issueSlug?: string;
+  issueId?: string;
   status?: "draft" | "in_review" | "published" | "archived";
   workflowStage?: ArticleWorkflowStage;
+  hasDraftChanges?: boolean;
+  draftData?: Record<string, unknown> | null;
   createdBy?: string;
   updatedBy?: string;
   currentReviewerId?: string;
@@ -99,6 +164,7 @@ export interface Article {
   bodySections?: ArticleSection[];
 }
 
+/** @deprecated Financial indicators are removed per Specification 3 */
 export interface MarketIndicator {
   symbol: string;
   name: string;
@@ -112,6 +178,7 @@ export interface PublicationIssue {
   slug: string;
   volume: string;
   issueNumber: string;
+  editionNumber?: number;
   title: string;
   description: string;
   dateString: string;
@@ -120,7 +187,8 @@ export interface PublicationIssue {
   coverStorySlug?: string;
   coverImage?: string;
   editorialNote?: string;
-  pdfUrl?: string; // only if real asset exists
+  pdfUrl?: string;
+  status?: "draft" | "published" | "archived";
 }
 
 export interface IssueMetadata {

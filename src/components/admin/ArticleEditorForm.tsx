@@ -12,7 +12,6 @@ import {
   ArticleWorkflowAuditEntry,
 } from "@/lib/types";
 import { EditorialUser, permissions } from "@/lib/auth/types";
-import { formatAdminDateTime } from "@/lib/utils";
 import {
   CheckCircle2,
   AlertCircle,
@@ -23,7 +22,6 @@ import {
   Quote,
   Layers,
   Sparkles,
-  BarChart3,
   Tag,
   Lock,
   Eye,
@@ -34,8 +32,12 @@ import {
   ArrowRight,
   ShieldCheck,
   MessageSquare,
-  History,
   Send,
+  AlertTriangle,
+  User,
+  Users,
+  EyeOff,
+  FileEdit,
 } from "lucide-react";
 
 interface ArticleEditorFormProps {
@@ -63,37 +65,61 @@ export default function ArticleEditorForm({
 }: ArticleEditorFormProps) {
   const router = useRouter();
 
+  // If article has unpublished draft changes, load the draft working copy data
+  const hasDraftChangesInitially = Boolean(initialArticle?.hasDraftChanges && initialArticle?.draftData);
+  const draftDataSource = (hasDraftChangesInitially ? (initialArticle?.draftData as Record<string, any>) : null) || {};
+
   // Track articleId in state so creating an article enables immediate subsequent updates
   const [articleId, setArticleId] = useState(initialArticle?.id || "");
+  const [hasDraftChanges, setHasDraftChanges] = useState(Boolean(initialArticle?.hasDraftChanges));
 
-  // Basic Information
-  const [title, setTitle] = useState(initialArticle?.title || "");
-  const [subtitle, setSubtitle] = useState(initialArticle?.subtitle || "");
-  const [slug, setSlug] = useState(initialArticle?.slug || "");
-  const [excerpt, setExcerpt] = useState(initialArticle?.excerpt || "");
-  const [readingTime, setReadingTime] = useState(initialArticle?.readingTime || "6 min read");
-  const [edition] = useState(initialArticle?.edition || "Hyderabad Edition");
-  const [issueSlug, setIssueSlug] = useState(initialArticle?.issueSlug || "vol-24-issue-04");
+  // Basic Information (prefers draft copy if active)
+  const [title, setTitle] = useState(draftDataSource.title || initialArticle?.title || "");
+  const [subtitle, setSubtitle] = useState(draftDataSource.subtitle || initialArticle?.subtitle || "");
+  const [slug, setSlug] = useState(draftDataSource.slug || initialArticle?.slug || "");
+  const [excerpt, setExcerpt] = useState(draftDataSource.excerpt || initialArticle?.excerpt || "");
+  const [readingTime, setReadingTime] = useState(draftDataSource.readingTime || initialArticle?.readingTime || "6 min read");
+  const [edition] = useState(draftDataSource.edition || initialArticle?.edition || "Edition 001");
+  const [issueSlug, setIssueSlug] = useState(draftDataSource.issueSlug || initialArticle?.issueSlug || "edition-001");
 
   // Routing & Attribution
   const [categoryId, setCategoryId] = useState(
-    initialArticle?.category?.id || categories[0]?.id || ""
+    draftDataSource.categoryId || initialArticle?.category?.id || categories[0]?.id || ""
+  );
+
+  // Author attribution modes: 'profile' | 'student' | 'anonymous'
+  const [authorDisplayMode, setAuthorDisplayMode] = useState<"profile" | "student" | "anonymous">(
+    (draftDataSource.authorDisplayMode as "profile" | "student" | "anonymous") ||
+    initialArticle?.authorDisplayMode ||
+    "profile"
+  );
+  const [customAuthorName, setCustomAuthorName] = useState(
+    draftDataSource.customAuthorName || initialArticle?.customAuthorName || ""
   );
   const [authorId, setAuthorId] = useState(
-    initialArticle?.author?.id || authors[0]?.id || ""
+    draftDataSource.authorId || initialArticle?.author?.id || authors[0]?.id || ""
   );
 
   // Editorial Flags
-  const [isLeadStory, setIsLeadStory] = useState(Boolean(initialArticle?.isLeadStory));
-  const [isEditorPick, setIsEditorPick] = useState(Boolean(initialArticle?.isEditorPick));
-  const [isBreaking, setIsBreaking] = useState(Boolean(initialArticle?.isBreaking));
+  const [isLeadStory, setIsLeadStory] = useState(
+    draftDataSource.isLeadStory !== undefined ? Boolean(draftDataSource.isLeadStory) : Boolean(initialArticle?.isLeadStory)
+  );
+  const [isEditorPick, setIsEditorPick] = useState(
+    draftDataSource.isEditorPick !== undefined ? Boolean(draftDataSource.isEditorPick) : Boolean(initialArticle?.isEditorPick)
+  );
+  const [isBreaking, setIsBreaking] = useState(
+    draftDataSource.isBreaking !== undefined ? Boolean(draftDataSource.isBreaking) : Boolean(initialArticle?.isBreaking)
+  );
 
   // Visual Media
   const [coverImage, setCoverImage] = useState(
-    initialArticle?.coverImage ||
+    draftDataSource.coverImage ||
+      initialArticle?.coverImage ||
       "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=85"
   );
-  const [imageCaption, setImageCaption] = useState(initialArticle?.imageCaption || "");
+  const [imageCaption, setImageCaption] = useState(
+    draftDataSource.imageCaption || initialArticle?.imageCaption || ""
+  );
 
   // Status & Publishing
   const [status, setStatus] = useState<"draft" | "in_review" | "published" | "archived">(
@@ -115,16 +141,22 @@ export default function ArticleEditorForm({
     initialArticle?.lastRevisionReason || ""
   );
 
-  // Workflow Modal States
+  // Workflow & Deletion Modal States
   const [revisionModalOpen, setRevisionModalOpen] = useState(false);
   const [revisionReasonInput, setRevisionReasonInput] = useState("");
   const [revisionModalError, setRevisionModalError] = useState<string | null>(null);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
 
+  // Deletion Safeguard Modal State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmTitleInput, setDeleteConfirmTitleInput] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Audit History State
   const [auditHistory, setAuditHistory] = useState<ArticleWorkflowAuditEntry[]>([]);
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
-  const [isAuditPanelOpen, setIsAuditPanelOpen] = useState(true);
+  const [isAuditPanelOpen, setIsAuditPanelOpen] = useState(false);
 
   // Fetch audit history on mount / articleId change
   const fetchAuditHistory = async (id: string) => {
@@ -153,15 +185,16 @@ export default function ArticleEditorForm({
 
   // Tags
   const [tags, setTags] = useState<string[]>(
-    initialArticle?.tags || ["Business", "Osmania University"]
+    draftDataSource.tags || initialArticle?.tags || ["Business", "Osmania University"]
   );
   const [newTagInput, setNewTagInput] = useState("");
 
   // Key Takeaways
   const [keyTakeaways, setKeyTakeaways] = useState<string[]>(
-    initialArticle?.keyTakeaways || [
-      "Key institutional or economic finding from the research dispatch.",
-    ]
+    draftDataSource.keyTakeaways ||
+      initialArticle?.keyTakeaways || [
+        "Key institutional or economic finding from the research dispatch.",
+      ]
   );
   const [newTakeawayInput, setNewTakeawayInput] = useState("");
 
@@ -169,14 +202,17 @@ export default function ArticleEditorForm({
   const [metrics, setMetrics] = useState<
     { label: string; value: string; change?: string }[]
   >(
-    initialArticle?.metrics || [
-      { label: "Regional Inflow", value: "₹4,200 Cr", change: "+18% YoY" },
-    ]
+    draftDataSource.metrics ||
+      initialArticle?.metrics || [
+        { label: "Regional Inflow", value: "₹4,200 Cr", change: "+18% YoY" },
+      ]
   );
 
   // Structured Body Sections
   const [bodySections, setBodySections] = useState<ArticleSection[]>(
-    initialArticle?.bodySections && initialArticle.bodySections.length > 0
+    (draftDataSource.bodySections && draftDataSource.bodySections.length > 0)
+      ? draftDataSource.bodySections
+      : initialArticle?.bodySections && initialArticle.bodySections.length > 0
       ? initialArticle.bodySections
       : [
           {
@@ -224,6 +260,8 @@ export default function ArticleEditorForm({
     slug,
     categoryId,
     authorId,
+    authorDisplayMode,
+    customAuthorName,
     status,
     readingTime,
     coverImage,
@@ -251,6 +289,7 @@ export default function ArticleEditorForm({
   }, [isDirty]);
 
   const canPublish = permissions.canPublish(currentUser.role);
+  const canDelete = permissions.canDeleteArticle(currentUser.role);
 
   // Generate slug automatically from title when empty
   const handleTitleBlur = () => {
@@ -289,21 +328,6 @@ export default function ArticleEditorForm({
     setKeyTakeaways(keyTakeaways.filter((_, i) => i !== index));
   };
 
-  // Metrics Helpers
-  const addMetric = () => {
-    setMetrics([...metrics, { label: "New Metric", value: "100+", change: "+10%" }]);
-  };
-
-  const updateMetric = (index: number, field: string, val: string) => {
-    const updated = [...metrics];
-    updated[index] = { ...updated[index], [field]: val };
-    setMetrics(updated);
-  };
-
-  const removeMetric = (index: number) => {
-    setMetrics(metrics.filter((_, i) => i !== index));
-  };
-
   // Section Helpers
   const addSection = () => {
     setBodySections([
@@ -324,7 +348,6 @@ export default function ArticleEditorForm({
 
   const updateSectionParagraphs = (index: number, text: string) => {
     const updated = [...bodySections];
-    // Split by double newline to preserve paragraph separation
     const paragraphs = text.split("\n\n").map((p) => p.trim()).filter(Boolean);
     updated[index] = { ...updated[index], paragraphs };
     setBodySections(updated);
@@ -363,9 +386,166 @@ export default function ArticleEditorForm({
     setBodySections(bodySections.filter((_, i) => i !== index));
   };
 
-  // Submission handler
+  const getCurrentFormData = () => ({
+    title,
+    subtitle,
+    slug: slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    excerpt: excerpt || title,
+    categoryId,
+    authorId,
+    authorDisplayMode,
+    customAuthorName: authorDisplayMode === "student" ? customAuthorName : undefined,
+    readingTime,
+    coverImage,
+    imageCaption,
+    isLeadStory,
+    isEditorPick,
+    isBreaking,
+    edition,
+    issueSlug,
+    tags,
+    keyTakeaways,
+    metrics,
+    bodySections,
+  });
+
+  // Save Working Draft Copy for Published Articles
+  const handleSaveDraftWorkingCopy = async () => {
+    if (!articleId) return;
+    setIsSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const draftData = getCurrentFormData();
+      const res = await fetch("/api/admin/articles/draft-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articleId,
+          action: "save",
+          draftData,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save draft working copy.");
+
+      setHasDraftChanges(true);
+      setIsDirty(false);
+      setFeedback({
+        type: "success",
+        message: "Working draft copy saved safely. The published live article remains unchanged until published.",
+      });
+      router.refresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save draft working copy.";
+      setFeedback({ type: "error", message: msg });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Publish Draft Working Copy to Live Site
+  const handlePublishDraftWorkingCopy = async () => {
+    if (!articleId) return;
+    if (!canPublish) {
+      setFeedback({
+        type: "error",
+        message: "Permission Denied: Only Chief Editors and Administrators can publish working draft updates.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback(null);
+
+    try {
+      // First ensure latest form values are saved into draftData
+      const draftData = getCurrentFormData();
+      await fetch("/api/admin/articles/draft-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articleId, action: "save", draftData }),
+      });
+
+      // Now publish the draft working copy
+      const res = await fetch("/api/admin/articles/draft-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articleId, action: "publish" }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to publish draft working copy.");
+
+      setHasDraftChanges(false);
+      setIsDirty(false);
+      setFeedback({
+        type: "success",
+        message: "Working draft changes have been published live to the broadsheet journal!",
+        publishedSlug: slug,
+      });
+      fetchAuditHistory(articleId);
+      router.refresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to publish draft changes.";
+      setFeedback({ type: "error", message: msg });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Discard Draft Working Copy
+  const handleDiscardDraftWorkingCopy = async () => {
+    if (!articleId) return;
+    if (!confirm("Are you sure you want to discard all unpublished draft working copy changes? This will revert the editor back to the live published state.")) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const res = await fetch("/api/admin/articles/draft-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articleId, action: "discard" }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to discard draft working copy.");
+
+      setHasDraftChanges(false);
+      setIsDirty(false);
+      setFeedback({
+        type: "success",
+        message: "Unpublished draft working copy changes discarded.",
+      });
+      // Re-sync with original article
+      if (initialArticle) {
+        setTitle(initialArticle.title || "");
+        setSubtitle(initialArticle.subtitle || "");
+        setExcerpt(initialArticle.excerpt || "");
+        setBodySections(initialArticle.bodySections || []);
+      }
+      router.refresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to discard draft changes.";
+      setFeedback({ type: "error", message: msg });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Submission handler for new or non-published articles
   const handleSave = async (targetStatus?: "draft" | "in_review" | "published" | "archived") => {
     if (isSubmitting) return;
+
+    // If this is an existing published article and target is not unpublishing/archiving, route to working draft save
+    if (status === "published" && (!targetStatus || targetStatus === "published")) {
+      await handleSaveDraftWorkingCopy();
+      return;
+    }
 
     const hasExistingArticle = Boolean(articleId || initialArticle?.id);
     const preservesWorkflowStage =
@@ -415,26 +595,9 @@ export default function ArticleEditorForm({
 
     const payload = {
       id: articleId || initialArticle?.id || undefined,
-      title,
-      subtitle,
-      slug: slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-      excerpt: excerpt || title,
-      categoryId,
-      authorId,
+      ...getCurrentFormData(),
       status: finalStatus,
       workflowStage: finalWorkflowStage,
-      readingTime,
-      coverImage,
-      imageCaption,
-      isLeadStory,
-      isEditorPick,
-      isBreaking,
-      edition,
-      issueSlug,
-      tags,
-      keyTakeaways,
-      metrics,
-      bodySections,
     };
 
     try {
@@ -507,28 +670,10 @@ export default function ArticleEditorForm({
     try {
       let activeId = articleId;
 
-      // If article does not exist yet in database, first persist draft
       if (!activeId) {
         const payload = {
-          title,
-          subtitle,
-          slug: slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-          excerpt: excerpt || title,
-          categoryId,
-          authorId,
+          ...getCurrentFormData(),
           status: "draft",
-          readingTime,
-          coverImage,
-          imageCaption,
-          isLeadStory,
-          isEditorPick,
-          isBreaking,
-          edition,
-          issueSlug,
-          tags,
-          keyTakeaways,
-          metrics,
-          bodySections,
         };
 
         const res = await fetch("/api/admin/articles", {
@@ -609,16 +754,35 @@ export default function ArticleEditorForm({
     }
   };
 
-  const isWriter =
-    permissions.isSectionWriter(currentUser.role) &&
-    !permissions.isEditorialEditor(currentUser.role);
-  const isEditorialEditor =
-    permissions.isEditorialEditor(currentUser.role) &&
-    !permissions.isChiefEditor(currentUser.role);
-  const isChief =
-    permissions.isChiefEditor(currentUser.role) &&
-    !permissions.isAdministrator(currentUser.role);
-  const isAdmin = permissions.isAdministrator(currentUser.role);
+  // Deletion execution with strict title confirmation
+  const handleExecuteDelete = async () => {
+    if (!articleId) return;
+
+    if (deleteConfirmTitleInput.trim().toLowerCase() !== title.trim().toLowerCase()) {
+      setDeleteError("Typed title does not match this article's headline exactly.");
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const res = await fetch(`/api/admin/articles?id=${encodeURIComponent(articleId)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete article.");
+
+      router.push("/admin/articles");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete article.";
+      setDeleteError(msg);
+      setIsDeleting(false);
+    }
+  };
+
+  const isPublishedArticle = status === "published";
+  const authorProfile = authors.find((a) => a.id === authorId) || authors[0];
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-16">
@@ -637,261 +801,158 @@ export default function ArticleEditorForm({
             <span className="text-xs font-mono text-crimson font-bold uppercase">
               {isNew ? "Create Dispatch" : "Edit Dispatch"}
             </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <h1 className="font-serif text-2xl sm:text-3xl font-bold text-ink-900">
-              {isNew ? "New Editorial Dispatch" : `Edit: ${title || "Untitled Dispatch"}`}
-            </h1>
-            <span
-              className={`px-2.5 py-0.5 rounded text-[10px] font-mono uppercase font-bold border ${
-                workflowStage === "published"
-                  ? "bg-forest-light text-forest border-forest/30"
-                  : workflowStage === "chief_review"
-                  ? "bg-crimson-light text-crimson-900 border-crimson/30"
-                  : workflowStage === "editorial_review"
-                  ? "bg-brass-light text-brass-dark border-brass/30"
-                  : workflowStage === "revision_requested"
-                  ? "bg-amber-100 text-amber-900 border-amber-300"
-                  : "bg-paper-200 text-ink-700 border-editorial-border"
-              }`}
-            >
-              Stage: {workflowStage.replace("_", " ")}
-            </span>
-            {isDirty && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold bg-amber-50 text-amber-800 border border-amber-300 animate-pulse">
-                Unsaved Changes
+            {isPublishedArticle && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-forest-light text-forest border border-forest/30">
+                Live on Broadsheet
+              </span>
+            )}
+            {isPublishedArticle && hasDraftChanges && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-amber-100 text-amber-900 border border-amber-300">
+                Draft Working Copy Active
               </span>
             )}
           </div>
+          <h1 className="font-serif text-2xl font-bold text-ink-950">
+            {isNew ? "Draft New Editorial Dispatch" : title || "Edit Dispatch"}
+          </h1>
         </div>
 
-        {/* Quick Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Live Preview Button */}
           <button
             type="button"
             onClick={() => setShowPreview(true)}
             className="px-3 py-2 border border-editorial-border bg-paper-100 hover:bg-paper-200 text-ink-800 text-xs font-mono font-medium rounded transition-colors flex items-center gap-1.5"
           >
-            <Eye className="w-3.5 h-3.5 text-crimson" />
-            <span>Broadsheet Preview</span>
+            <Eye className="w-3.5 h-3.5 text-ink-600" />
+            <span>Preview Broadsheet</span>
           </button>
 
-          {/* Save Draft / Save Changes */}
-          <button
-            type="button"
-            onClick={() => handleSave("draft")}
-            disabled={isSubmitting}
-            className="px-3 py-2 border border-editorial-border bg-paper-100 hover:bg-paper-200 text-ink-800 text-xs font-mono font-medium rounded transition-colors disabled:opacity-50"
-          >
-            {workflowStage === "editorial_review" ||
-            workflowStage === "chief_review" ||
-            workflowStage === "revision_requested"
-              ? "Save Changes"
-              : "Save Draft"}
-          </button>
-
-          {/* Section Writer Workflow Controls */}
-          {isWriter && (
-            <>
-              {(workflowStage === "draft" || workflowStage === "revision_requested") ? (
-                <button
-                  type="button"
-                  onClick={() => handleWorkflowAction("submit_for_editorial_review")}
-                  disabled={isSubmitting}
-                  className="px-3 py-2 bg-crimson hover:bg-crimson-800 text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Submit to Editorial Editor</span>
-                </button>
-              ) : (
-                <div className="px-3 py-2 bg-paper-200 text-ink-600 text-xs font-mono rounded border border-editorial-border flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-brass" />
-                  <span>Under Editorial Review (Locked)</span>
-                </div>
-              )}
-            </>
+          {/* Delete Dispatch Button (Requires confirmation modal) */}
+          {!isNew && articleId && canDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteModalOpen(true);
+                setDeleteConfirmTitleInput("");
+                setDeleteError(null);
+              }}
+              className="px-3 py-2 border border-crimson/30 bg-crimson-light/40 hover:bg-crimson-light text-crimson text-xs font-mono font-medium rounded transition-colors flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete</span>
+            </button>
           )}
 
-          {/* Editorial Editor Workflow Controls */}
-          {isEditorialEditor && (
+          {/* Published Article Workflow Buttons */}
+          {isPublishedArticle ? (
             <>
-              {workflowStage === "editorial_review" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRevisionModalOpen(true);
-                      setRevisionReasonInput("");
-                      setRevisionModalError(null);
-                    }}
-                    disabled={isSubmitting}
-                    className="px-3 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-mono font-medium rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Return for Revision</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleWorkflowAction("forward_to_chief")}
-                    disabled={isSubmitting}
-                    className="px-3 py-2 bg-brass hover:bg-brass-dark text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <span>Forward to Chief Editor</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              )}
-
-              {(workflowStage === "draft" || workflowStage === "revision_requested") && (
-                <button
-                  type="button"
-                  onClick={() => handleWorkflowAction("submit_for_editorial_review")}
-                  disabled={isSubmitting}
-                  className="px-3 py-2 bg-crimson hover:bg-crimson-800 text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Submit for Review</span>
-                </button>
-              )}
-            </>
-          )}
-
-          {/* Chief Editor Workflow Controls */}
-          {isChief && (
-            <>
-              {workflowStage === "chief_review" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRevisionModalOpen(true);
-                      setRevisionReasonInput("");
-                      setRevisionModalError(null);
-                    }}
-                    disabled={isSubmitting}
-                    className="px-3 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-mono font-medium rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Return for Revision</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPublishModalOpen(true)}
-                    disabled={isSubmitting}
-                    className="px-4 py-2 bg-crimson hover:bg-crimson-800 text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Approve & Publish Live</span>
-                  </button>
-                </>
-              )}
-
-              {workflowStage === "editorial_review" && (
-                <button
-                  type="button"
-                  onClick={() => handleWorkflowAction("forward_to_chief")}
-                  disabled={isSubmitting}
-                  className="px-3 py-2 bg-brass hover:bg-brass-dark text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <span>Forward to Chief Queue</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              {status === "published" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleSave("draft")}
-                    disabled={isSubmitting}
-                    className="px-3 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-mono font-medium rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Unpublish to Draft</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSave("archived")}
-                    disabled={isSubmitting}
-                    className="px-3 py-2 border border-editorial-border bg-paper-100 hover:bg-paper-200 text-ink-700 text-xs font-mono font-medium rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <Archive className="w-3.5 h-3.5 text-ink-500" />
-                    <span>Archive</span>
-                  </button>
-                </>
-              )}
-            </>
-          )}
-
-          {/* Administrator Full Controls */}
-          {isAdmin && (
-            <>
-              {(workflowStage === "draft" || workflowStage === "revision_requested") && (
-                <button
-                  type="button"
-                  onClick={() => handleWorkflowAction("submit_for_editorial_review")}
-                  disabled={isSubmitting}
-                  className="px-3 py-2 bg-brass hover:bg-brass-dark text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Submit to Editorial</span>
-                </button>
-              )}
-
-              {workflowStage === "editorial_review" && (
-                <button
-                  type="button"
-                  onClick={() => handleWorkflowAction("forward_to_chief")}
-                  disabled={isSubmitting}
-                  className="px-3 py-2 bg-brass hover:bg-brass-dark text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <span>Forward to Chief</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )}
-
               <button
                 type="button"
-                onClick={() => {
-                  setRevisionModalOpen(true);
-                  setRevisionReasonInput("");
-                  setRevisionModalError(null);
-                }}
+                onClick={handleSaveDraftWorkingCopy}
                 disabled={isSubmitting}
-                className="px-3 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-mono font-medium rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                className="px-3 py-2 bg-paper-50 border border-amber-300 hover:bg-amber-50 text-amber-900 text-xs font-mono font-semibold uppercase tracking-wider rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
-                <span>Return for Revision</span>
+                <FileEdit className="w-3.5 h-3.5 text-amber-700" />
+                <span>Save Draft Changes</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setPublishModalOpen(true)}
-                disabled={isSubmitting}
-                className="px-4 py-2 bg-crimson hover:bg-crimson-800 text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Publish Live</span>
-              </button>
-
-              {status === "published" && (
+              {canPublish && (
                 <button
                   type="button"
-                  onClick={() => handleSave("archived")}
+                  onClick={handlePublishDraftWorkingCopy}
+                  disabled={isSubmitting}
+                  className="px-3.5 py-2 bg-crimson hover:bg-crimson-800 text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Publish Changes Live</span>
+                </button>
+              )}
+
+              {hasDraftChanges && (
+                <button
+                  type="button"
+                  onClick={handleDiscardDraftWorkingCopy}
                   disabled={isSubmitting}
                   className="px-3 py-2 border border-editorial-border bg-paper-100 hover:bg-paper-200 text-ink-700 text-xs font-mono font-medium rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  <Archive className="w-3.5 h-3.5 text-ink-500" />
-                  <span>Archive</span>
+                  <RotateCcw className="w-3.5 h-3.5 text-ink-500" />
+                  <span>Discard Draft</span>
+                </button>
+              )}
+
+              {canPublish && (
+                <button
+                  type="button"
+                  onClick={() => handleSave("draft")}
+                  disabled={isSubmitting}
+                  className="px-3 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-mono font-medium rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Unpublish to Draft</span>
+                </button>
+              )}
+            </>
+          ) : (
+            /* Draft / Review Article Workflow Buttons */
+            <>
+              <button
+                type="button"
+                onClick={() => handleSave("draft")}
+                disabled={isSubmitting}
+                className="px-3 py-2 border border-editorial-border bg-paper-100 hover:bg-paper-200 text-ink-800 text-xs font-mono font-medium rounded transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? "Saving..." : "Save Draft"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleWorkflowAction("submit_for_editorial_review")}
+                disabled={isSubmitting}
+                className="px-3 py-2 bg-brass hover:bg-brass-dark text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Submit for Review</span>
+              </button>
+
+              {canPublish && (
+                <button
+                  type="button"
+                  onClick={() => setPublishModalOpen(true)}
+                  disabled={isSubmitting}
+                  className="px-3.5 py-2 bg-crimson hover:bg-crimson-800 text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Publish Live</span>
                 </button>
               )}
             </>
           )}
         </div>
       </div>
+
+      {/* Published Article Draft Banner */}
+      {isPublishedArticle && (
+        <div className="p-4 rounded-lg border border-amber-300 bg-amber-50/80 text-amber-950 flex items-start gap-3 shadow-sm">
+          <FileEdit className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs uppercase font-bold text-amber-900">
+                {hasDraftChanges ? "Active Draft Working Copy" : "Live Published Article"}
+              </span>
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-forest-light text-forest font-bold">
+                Live URL Unchanged
+              </span>
+            </div>
+            <p className="text-xs leading-relaxed font-sans text-amber-900">
+              {hasDraftChanges
+                ? "You have unpublished changes in this draft working copy. The live version on the broadsheet remains untouched until you click 'Publish Changes Live'."
+                : "Editing this live article will create a draft working copy. You can preview and edit freely without affecting readers of the broadsheet."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Revision Directive Banner (if returned for revision) */}
       {lastRevisionReason && (
@@ -1153,9 +1214,9 @@ export default function ArticleEditorForm({
           </div>
         </div>
 
-        {/* Right Column: Taxonomy, Flags, Metrics, Media (1 col) */}
+        {/* Right Column: Taxonomy, Author Attribution, Flags, Metrics, Media (1 col) */}
         <div className="space-y-6">
-          {/* Status & Workflow Card */}
+          {/* Publication Workflow Card */}
           <div className="bg-paper-ivory border border-editorial-border rounded-lg p-5 shadow-sm space-y-4">
             <h3 className="font-serif text-sm font-bold text-ink-900 border-b border-editorial-border pb-2">
               Publication Workflow
@@ -1187,7 +1248,7 @@ export default function ArticleEditorForm({
                     onChange={() => setStatus("in_review")}
                     className="text-crimson focus:ring-crimson"
                   />
-                  <span>In Review (Submitted to Editors)</span>
+                  <span>In Review (Submitted to Editorial)</span>
                 </label>
 
                 <label
@@ -1236,8 +1297,7 @@ export default function ArticleEditorForm({
                   <p className="flex items-start gap-1.5">
                     <Lock className="w-3.5 h-3.5 text-ink-500 shrink-0 mt-0.5" />
                     <span>
-                      Publishing and archiving are restricted to Section Editors and the
-                      Editor-in-Chief. Please save as Draft or submit for Review.
+                      Publishing and archiving are restricted to the Chief Editor and Administrator.
                     </span>
                   </p>
                 </div>
@@ -1246,22 +1306,22 @@ export default function ArticleEditorForm({
 
             <div className="pt-2 border-t border-editorial-border">
               <label className="block text-xs font-mono font-medium uppercase tracking-wider text-ink-700">
-                Assigned Issue / Dossier
+                Assigned Edition / Dossier
               </label>
               <input
                 type="text"
                 value={issueSlug}
                 onChange={(e) => setIssueSlug(e.target.value)}
-                placeholder="vol-24-issue-04"
+                placeholder="edition-001"
                 className="mt-1 block w-full px-3 py-1.5 border border-editorial-border rounded bg-paper-50 text-xs font-mono text-ink-800 focus:outline-none focus:ring-1 focus:ring-crimson"
               />
             </div>
           </div>
 
-          {/* Editorial Routing & Contributor */}
+          {/* Editorial Routing & 3-Mode Author Attribution */}
           <div className="bg-paper-ivory border border-editorial-border rounded-lg p-5 shadow-sm space-y-4">
             <h3 className="font-serif text-sm font-bold text-ink-900 border-b border-editorial-border pb-2">
-              Routing & Contributor
+              Routing & Author Attribution
             </h3>
 
             <div>
@@ -1281,21 +1341,108 @@ export default function ArticleEditorForm({
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-mono font-medium uppercase tracking-wider text-ink-700 mb-1">
-                Primary Author
+            {/* 3 Author Attribution Options */}
+            <div className="space-y-3 pt-2 border-t border-editorial-border">
+              <label className="block text-xs font-mono font-medium uppercase tracking-wider text-ink-700">
+                Author Attribution Mode
               </label>
-              <select
-                value={authorId}
-                onChange={(e) => setAuthorId(e.target.value)}
-                className="block w-full px-3 py-1.5 border border-editorial-border rounded bg-paper-50 text-xs font-sans text-ink-800 focus:outline-none focus:ring-1 focus:ring-crimson"
-              >
-                {authors.map((auth) => (
-                  <option key={auth.id} value={auth.id}>
-                    {auth.name} — {auth.role}
-                  </option>
-                ))}
-              </select>
+
+              <div className="space-y-2">
+                {/* Mode 1: Author Profile */}
+                <label className="flex items-center gap-2 text-xs text-ink-800 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="authorDisplayMode"
+                    value="profile"
+                    checked={authorDisplayMode === "profile"}
+                    onChange={() => setAuthorDisplayMode("profile")}
+                    className="text-crimson focus:ring-crimson"
+                  />
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <User className="w-3.5 h-3.5 text-crimson" />
+                    <span>Author Profile</span>
+                  </div>
+                </label>
+
+                {/* Mode 2: Student Author */}
+                <label className="flex items-center gap-2 text-xs text-ink-800 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="authorDisplayMode"
+                    value="student"
+                    checked={authorDisplayMode === "student"}
+                    onChange={() => setAuthorDisplayMode("student")}
+                    className="text-crimson focus:ring-crimson"
+                  />
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Users className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Publish with Student Author</span>
+                  </div>
+                </label>
+
+                {/* Mode 3: Anonymous / Institutional Voice */}
+                <label className="flex items-center gap-2 text-xs text-ink-800 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="authorDisplayMode"
+                    value="anonymous"
+                    checked={authorDisplayMode === "anonymous"}
+                    onChange={() => setAuthorDisplayMode("anonymous")}
+                    className="text-crimson focus:ring-crimson"
+                  />
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <EyeOff className="w-3.5 h-3.5 text-ink-500" />
+                    <span>Publish without displaying an author (Anonymous)</span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Mode 1 Details: Dropdown */}
+              {authorDisplayMode === "profile" && (
+                <div className="pt-2">
+                  <label className="block text-[11px] font-mono text-ink-600 uppercase mb-1">
+                    Select Profile
+                  </label>
+                  <select
+                    value={authorId}
+                    onChange={(e) => setAuthorId(e.target.value)}
+                    className="block w-full px-3 py-1.5 border border-editorial-border rounded bg-paper-50 text-xs font-sans text-ink-800 focus:outline-none focus:ring-1 focus:ring-crimson"
+                  >
+                    {authors.map((auth) => (
+                      <option key={auth.id} value={auth.id}>
+                        {auth.name} — {auth.role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Mode 2 Details: Student Name Input */}
+              {authorDisplayMode === "student" && (
+                <div className="pt-2 space-y-1">
+                  <label className="block text-[11px] font-mono text-ink-600 uppercase">
+                    Student Contributor Byline Name <span className="text-crimson">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customAuthorName}
+                    onChange={(e) => setCustomAuthorName(e.target.value)}
+                    placeholder="e.g. Aditi Rao, Section Writer"
+                    className="block w-full px-3 py-1.5 border border-editorial-border rounded bg-paper-50 text-xs font-sans text-ink-800 focus:outline-none focus:ring-1 focus:ring-crimson"
+                  />
+                  <p className="text-[10px] text-ink-500 font-mono">
+                    Will appear on the article byline as written by this student contributor.
+                  </p>
+                </div>
+              )}
+
+              {/* Mode 3 Details: Institutional Note */}
+              {authorDisplayMode === "anonymous" && (
+                <div className="pt-2 p-2.5 rounded bg-paper-200 border border-editorial-border text-[11px] text-ink-600 space-y-0.5">
+                  <span className="font-mono font-bold text-ink-800 uppercase block">Institutional Attribution</span>
+                  <p>Published under the institutional editorial voice (&ldquo;Executive Editorial Board&rdquo;). No individual student or writer name will appear on the article.</p>
+                </div>
+              )}
             </div>
 
             <div className="pt-2 border-t border-editorial-border space-y-2">
@@ -1461,8 +1608,8 @@ export default function ArticleEditorForm({
                     addTakeaway();
                   }
                 }}
-                placeholder="Add takeaway bullet..."
-                className="flex-1 px-2.5 py-1 border border-editorial-border rounded bg-paper-50 text-xs text-ink-800 focus:outline-none focus:ring-1 focus:ring-crimson"
+                placeholder="Add briefing point..."
+                className="flex-1 px-2.5 py-1 border border-editorial-border rounded bg-paper-50 text-xs font-sans text-ink-800 focus:outline-none focus:ring-1 focus:ring-crimson"
               />
               <button
                 type="button"
@@ -1473,267 +1620,142 @@ export default function ArticleEditorForm({
               </button>
             </div>
           </div>
-
-          {/* Metrics Builder */}
-          <div className="bg-paper-ivory border border-editorial-border rounded-lg p-5 shadow-sm space-y-3">
-            <div className="flex items-center justify-between border-b border-editorial-border pb-2">
-              <h3 className="font-serif text-sm font-bold text-ink-900 flex items-center gap-1.5">
-                <BarChart3 className="w-3.5 h-3.5 text-forest" />
-                <span>Executive Metrics</span>
-              </h3>
-              <button
-                type="button"
-                onClick={addMetric}
-                className="text-[11px] font-mono text-crimson hover:underline"
-              >
-                + Add Metric
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {metrics.map((m, idx) => (
-                <div
-                  key={idx}
-                  className="p-2.5 rounded bg-paper-50 border border-editorial-border space-y-1.5 text-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[10px] text-ink-500 uppercase">
-                      Metric #{idx + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeMetric(idx)}
-                      className="text-ink-400 hover:text-crimson text-xs font-bold"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <input
-                      type="text"
-                      value={m.label}
-                      onChange={(e) => updateMetric(idx, "label", e.target.value)}
-                      placeholder="Label"
-                      className="px-2 py-1 border border-editorial-border rounded bg-paper-ivory text-xs"
-                    />
-                    <input
-                      type="text"
-                      value={m.value}
-                      onChange={(e) => updateMetric(idx, "value", e.target.value)}
-                      placeholder="Value"
-                      className="px-2 py-1 border border-editorial-border rounded bg-paper-ivory text-xs font-bold"
-                    />
-                    <input
-                      type="text"
-                      value={m.change || ""}
-                      onChange={(e) => updateMetric(idx, "change", e.target.value)}
-                      placeholder="Change"
-                      className="px-2 py-1 border border-editorial-border rounded bg-paper-ivory text-xs"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Editorial Workflow Audit Trail Panel */}
-      <div className="bg-paper-ivory border border-editorial-border rounded-lg p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-editorial-border pb-3">
-          <div className="flex items-center gap-2">
-            <History className="w-5 h-5 text-ink-700" />
-            <h3 className="font-serif text-lg font-bold text-ink-900">
-              Editorial Workflow History & Reviewer Directives
-            </h3>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-ink-500">
-              {auditHistory.length} Recorded Event{auditHistory.length === 1 ? "" : "s"}
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsAuditPanelOpen(!isAuditPanelOpen)}
-              className="text-xs font-mono text-crimson hover:underline"
-            >
-              {isAuditPanelOpen ? "Collapse" : "Expand"}
-            </button>
-          </div>
-        </div>
-
-        {isAuditPanelOpen && (
-          <>
-            {isLoadingAudit ? (
-              <div className="py-6 text-center text-xs font-mono text-ink-500">
-                Loading workflow audit events...
-              </div>
-            ) : auditHistory.length === 0 ? (
-              <div className="py-6 text-center text-xs font-mono text-ink-500">
-                No workflow events recorded yet for this dispatch. Transitions, reviews, and directives will appear here automatically.
-              </div>
-            ) : (
-              <div className="divide-y divide-editorial-border/60">
-                {auditHistory.map((entry) => (
-                  <div key={entry.id} className="py-3 text-xs space-y-1.5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-ink-800 uppercase text-[10px] px-2 py-0.5 bg-paper-200 border border-editorial-border rounded">
-                          {entry.action.replace(/_/g, " ")}
-                        </span>
-                        <span className="font-mono text-ink-500 text-[11px]">
-                          {entry.fromStage} → <strong className="text-ink-800">{entry.toStage}</strong>
-                        </span>
-                      </div>
-                      <span className="text-ink-400 font-mono text-[11px]">
-                          {formatAdminDateTime(entry.createdAt)}
-                      </span>
-                    </div>
-
-                    {entry.revisionReason && (
-                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-amber-950 text-xs mt-1">
-                        <strong className="text-amber-900 font-mono text-[10px] uppercase block mb-0.5">
-                          Editorial Revision Directive:
-                        </strong>
-                        <p className="leading-relaxed">{entry.revisionReason}</p>
-                      </div>
-                    )}
-
-                    <div className="text-[10px] font-mono text-ink-400">
-                      Actor: {entry.actorId}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Return for Revision Modal */}
-      {revisionModalOpen && (
-        <div className="fixed inset-0 bg-ink-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-paper-ivory border border-editorial-border rounded-lg shadow-xl max-w-lg w-full p-6 space-y-4 animate-scaleUp">
-            <div className="flex items-center justify-between border-b border-editorial-border pb-3">
-              <div className="flex items-center gap-2">
-                <RotateCcw className="w-5 h-5 text-amber-700" />
-                <h3 className="font-serif text-lg font-bold text-ink-900">
-                  Return Dispatch for Revision
+      {/* Delete Confirmation Safeguard Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-paper-ivory border-2 border-crimson rounded-lg max-w-md w-full p-6 shadow-2xl space-y-4 animate-scaleUp">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5 text-crimson">
+                <AlertTriangle className="w-6 h-6 shrink-0" />
+                <h3 className="font-serif text-base font-bold text-ink-950">
+                  Confirm Permanent Deletion
                 </h3>
               </div>
               <button
-                type="button"
-                onClick={() => setRevisionModalOpen(false)}
-                className="text-ink-400 hover:text-ink-800"
+                onClick={() => setDeleteModalOpen(false)}
+                className="text-ink-400 hover:text-ink-700"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-ink-700 leading-relaxed">
-              You are returning <strong className="text-ink-900 font-serif">&ldquo;{title}&rdquo;</strong> to the author for revision. A detailed revision reason is mandatory to guide the writer.
-            </p>
+            <div className="p-3 bg-crimson-light/30 border border-crimson/20 rounded text-xs space-y-2 text-ink-800">
+              <p>
+                Deleting this dispatch is irreversible. To safeguard publication integrity, type the exact article title below:
+              </p>
+              <div className="p-2 bg-paper-50 rounded border border-editorial-border font-serif font-bold text-xs text-ink-950 break-words">
+                &ldquo;{title}&rdquo;
+              </div>
+            </div>
 
-            {revisionModalError && (
-              <div className="p-3 bg-crimson-light/50 border border-crimson/30 rounded text-xs text-crimson-900 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-crimson" />
-                <span>{revisionModalError}</span>
+            {deleteError && (
+              <div className="p-2.5 bg-crimson-light text-crimson-900 border border-crimson/30 rounded text-xs">
+                {deleteError}
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-mono font-semibold uppercase tracking-wider text-ink-800 mb-1">
-                Editorial Directives & Required Changes (Mandatory) <span className="text-crimson">*</span>
+            <div className="space-y-1">
+              <label className="block text-[11px] font-mono uppercase text-ink-600 font-semibold">
+                Type exact headline to confirm:
               </label>
-              <textarea
-                rows={4}
-                required
-                value={revisionReasonInput}
-                onChange={(e) => setRevisionReasonInput(e.target.value)}
-                placeholder="Specify required additions, statistical corrections, pedagogical alignment, or corporate citations..."
-                className="w-full px-3 py-2 border border-editorial-border rounded bg-paper-50 text-ink-900 text-xs font-sans leading-relaxed focus:outline-none focus:ring-1 focus:ring-crimson"
+              <input
+                type="text"
+                value={deleteConfirmTitleInput}
+                onChange={(e) => {
+                  setDeleteConfirmTitleInput(e.target.value);
+                  setDeleteError(null);
+                }}
+                placeholder={title}
+                className="w-full px-3 py-2 border border-editorial-border rounded bg-paper-50 text-xs font-serif text-ink-900 focus:outline-none focus:ring-1 focus:ring-crimson"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-editorial-border">
+            <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setRevisionModalOpen(false)}
-                className="px-3 py-1.5 border border-editorial-border rounded text-xs font-mono text-ink-700 hover:bg-paper-200"
+                onClick={() => setDeleteModalOpen(false)}
+                className="px-3 py-1.5 border border-editorial-border text-xs font-mono text-ink-700 rounded hover:bg-paper-200"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  const trimmed = revisionReasonInput.trim();
-                  if (!trimmed) {
-                    setRevisionModalError("A detailed revision reason is mandatory when returning an article.");
-                    return;
-                  }
-                  handleWorkflowAction("return_for_revision", trimmed);
-                }}
-                disabled={isSubmitting || !revisionReasonInput.trim()}
-                className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50"
+                onClick={handleExecuteDelete}
+                disabled={
+                  isDeleting ||
+                  deleteConfirmTitleInput.trim().toLowerCase() !== title.trim().toLowerCase()
+                }
+                className="px-4 py-1.5 bg-crimson hover:bg-crimson-800 disabled:opacity-40 disabled:cursor-not-allowed text-paper-ivory text-xs font-mono font-bold uppercase tracking-wider rounded transition-colors flex items-center gap-1.5 shadow"
               >
-                {isSubmitting ? "Returning..." : "Confirm Return for Revision"}
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? "Deleting..." : "Permanently Delete"}</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Chief Editor Publish Confirmation Modal */}
+      {/* Publish Live Modal Confirmation */}
       {publishModalOpen && (
-        <div className="fixed inset-0 bg-ink-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-paper-ivory border border-editorial-border rounded-lg shadow-xl max-w-lg w-full p-6 space-y-4 animate-scaleUp">
-            <div className="flex items-center justify-between border-b border-editorial-border pb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-crimson" />
-                <h3 className="font-serif text-lg font-bold text-ink-900">
-                  Confirm Live Broadsheet Publication
+        <div className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-paper-ivory border border-editorial-border rounded-lg max-w-md w-full p-6 shadow-2xl space-y-4 animate-scaleUp">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2 text-crimson">
+                <ShieldCheck className="w-5 h-5 shrink-0" />
+                <h3 className="font-serif text-base font-bold text-ink-950">
+                  Publish Dispatch Live
                 </h3>
               </div>
               <button
-                type="button"
                 onClick={() => setPublishModalOpen(false)}
-                className="text-ink-400 hover:text-ink-800"
+                className="text-ink-400 hover:text-ink-700"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <p className="text-xs text-ink-700 leading-relaxed">
-              As {permissions.isAdministrator(currentUser.role) ? "Administrator" : "Chief Editor"}, you are authorizing immediate live publication of:
+              You are about to publish <strong>&ldquo;{title}&rdquo;</strong> directly to the public broadsheet journal.
             </p>
 
-            <div className="p-3 bg-paper-100 border border-editorial-border rounded">
-              <h4 className="font-serif font-bold text-sm text-ink-900">
-                {title || "Untitled Dispatch"}
-              </h4>
-              <p className="text-[11px] font-mono text-ink-500 mt-1">
-                Slug: /articles/{slug} · Edition: {edition}
-              </p>
+            <div className="p-3 bg-paper-100 rounded border border-editorial-border space-y-1 text-xs">
+              <div className="flex justify-between text-ink-600">
+                <span>Byline Attribution:</span>
+                <span className="font-semibold text-ink-900">
+                  {authorDisplayMode === "student"
+                    ? `${customAuthorName || "Student Contributor"} (Student)`
+                    : authorDisplayMode === "anonymous"
+                    ? "Executive Editorial Board"
+                    : authorProfile.name}
+                </span>
+              </div>
+              <div className="flex justify-between text-ink-600">
+                <span>Edition:</span>
+                <span className="font-mono text-ink-900">Edition 001</span>
+              </div>
             </div>
 
-            <p className="text-xs text-ink-600">
-              This action will publish the dispatch live to the broadsheet journal homepage and record your sanction in the permanent audit trail.
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-editorial-border">
+            <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setPublishModalOpen(false)}
-                className="px-3 py-1.5 border border-editorial-border rounded text-xs font-mono text-ink-700 hover:bg-paper-200"
+                className="px-3 py-1.5 border border-editorial-border text-xs font-mono text-ink-700 rounded hover:bg-paper-200"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => handleWorkflowAction("approve_and_publish")}
+                onClick={() => {
+                  setPublishModalOpen(false);
+                  handleSave("published");
+                }}
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-crimson hover:bg-crimson-800 text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded shadow transition-colors disabled:opacity-50"
+                className="px-4 py-1.5 bg-crimson hover:bg-crimson-800 text-paper-ivory text-xs font-mono font-bold uppercase tracking-wider rounded transition-colors"
               >
-                {isSubmitting ? "Publishing..." : "Confirm Live Publication"}
+                Confirm & Publish
               </button>
             </div>
           </div>
@@ -1742,10 +1764,10 @@ export default function ArticleEditorForm({
 
       {/* Live Broadsheet Preview Modal */}
       {showPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-ink-950/70 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-paper-ivory border-2 border-ink w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-ink-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6">
+          <div className="bg-paper-ivory border border-editorial-border rounded-lg max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scaleUp">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b-2 border-ink bg-paper-100">
+            <div className="p-4 border-b border-editorial-border flex items-center justify-between bg-paper-100/90">
               <div className="flex items-center gap-2">
                 <span className="bg-crimson text-paper-ivory px-2 py-0.5 text-[11px] font-mono font-bold uppercase tracking-widest">
                   Live Broadsheet Preview
@@ -1760,7 +1782,11 @@ export default function ArticleEditorForm({
                     type="button"
                     onClick={() => {
                       setShowPreview(false);
-                      handleSave("published");
+                      if (isPublishedArticle) {
+                        handlePublishDraftWorkingCopy();
+                      } else {
+                        handleSave("published");
+                      }
                     }}
                     disabled={isSubmitting}
                     className="px-3 py-1.5 bg-crimson hover:bg-crimson-800 text-paper-ivory text-xs font-mono font-semibold uppercase tracking-wider rounded transition-colors disabled:opacity-50"
@@ -1786,7 +1812,7 @@ export default function ArticleEditorForm({
                 <span className="bg-crimson-light text-crimson font-bold uppercase tracking-widest px-2 py-0.5">
                   {categories.find((c) => c.id === categoryId)?.name || "Editorial Desk"}
                 </span>
-                <span>{edition} · Active Volume</span>
+                <span>Edition 001 · Inaugural Edition</span>
               </div>
 
               {/* Headline */}
@@ -1801,15 +1827,22 @@ export default function ArticleEditorForm({
                 </p>
               )}
 
-              {/* Byline */}
+              {/* Byline Attribution Presentation */}
               <div className="p-3 bg-paper-50 border border-editorial-border flex items-center justify-between text-xs">
                 <div>
                   <span className="font-serif font-bold text-ink-950">
-                    {authors.find((a) => a.id === authorId)?.name || "Editorial Board"}
+                    {authorDisplayMode === "student"
+                      ? customAuthorName || "Student Contributor"
+                      : authorDisplayMode === "anonymous"
+                      ? "Executive Editorial Board"
+                      : authorProfile.name}
                   </span>
                   <span className="font-mono text-ink-500 ml-2">
-                    {authors.find((a) => a.id === authorId)?.role || "Contributor"} ·{" "}
-                    {authors.find((a) => a.id === authorId)?.affiliation || "OU DBM"}
+                    {authorDisplayMode === "student"
+                      ? "Section Writer · Department of Business Management, Osmania University"
+                      : authorDisplayMode === "anonymous"
+                      ? "Institutional Editorial Voice"
+                      : `${authorProfile.role} · ${authorProfile.affiliation}`}
                   </span>
                 </div>
                 <span className="font-mono text-ink-400">{readingTime}</span>
@@ -1853,19 +1886,6 @@ export default function ArticleEditorForm({
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
-
-              {/* Metrics */}
-              {metrics.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {metrics.map((m, idx) => (
-                    <div key={idx} className="p-3 bg-paper-ivory border border-editorial-border text-center">
-                      <div className="font-mono text-[10px] uppercase text-ink-500 font-semibold">{m.label}</div>
-                      <div className="font-serif text-xl font-bold text-ink-950 my-1">{m.value}</div>
-                      {m.change && <div className="font-mono text-[11px] text-forest font-semibold">{m.change}</div>}
-                    </div>
-                  ))}
                 </div>
               )}
 

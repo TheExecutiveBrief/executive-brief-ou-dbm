@@ -17,7 +17,6 @@ export default async function HomePage() {
     campusArticles,
     researchArticles,
     voicesArticles,
-    marketIndicators,
   ] = await Promise.all([
     contentRepository.getLeadStory(),
     contentRepository.getCoverCompanionArticles(),
@@ -26,7 +25,6 @@ export default async function HomePage() {
     contentRepository.getArticlesByDesk("campus"),
     contentRepository.getArticlesByDesk("research"),
     contentRepository.getArticlesByDesk("voices"),
-    contentRepository.getMarketIndicators(),
   ]);
 
   return (
@@ -37,8 +35,8 @@ export default async function HomePage() {
       {/* 2. Executive Wire Ticker */}
       <BriefingStrip items={briefingStripItems} />
 
-      {/* 3. Section Desk 01: Business & Markets */}
-      <BusinessDesk articles={businessArticles} marketIndicators={marketIndicators} />
+      {/* 3. Section Desk 01: Business & Markets (No hardcoded/live market tickers) */}
+      <BusinessDesk articles={businessArticles} />
 
       {/* 4. Section Desk 02: Campus Leadership */}
       <CampusDesk articles={campusArticles} />

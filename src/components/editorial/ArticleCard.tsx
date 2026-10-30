@@ -13,6 +13,34 @@ interface ArticleCardProps {
   showImage?: boolean;
 }
 
+function getAuthorInfo(article: Article) {
+  if (article.authorDisplayMode === "student") {
+    return {
+      name: article.customAuthorName || "Student Contributor",
+      role: "Section Writer",
+      affiliation: "OU DBM",
+      avatar:
+        article.author.avatar ||
+        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
+    };
+  }
+  if (article.authorDisplayMode === "anonymous") {
+    return {
+      name: "Executive Editorial Board",
+      role: "Institutional Voice",
+      affiliation: "The Executive Brief",
+      avatar:
+        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=400&q=80",
+    };
+  }
+  return {
+    name: article.author.name,
+    role: article.author.role,
+    affiliation: article.author.affiliation,
+    avatar: article.author.avatar,
+  };
+}
+
 export default function ArticleCard({
   article,
   variant = "standard",
@@ -20,6 +48,7 @@ export default function ArticleCard({
   showImage = true,
 }: ArticleCardProps) {
   const articleUrl = getArticleUrl(article.slug);
+  const authorInfo = getAuthorInfo(article);
 
   // OPINION VARIANT (HBR / FT Guest Column style)
   if (variant === "opinion") {
@@ -43,8 +72,8 @@ export default function ArticleCard({
           <div className="flex items-center gap-3 mb-4">
             <div className="relative w-12 h-12 rounded-full overflow-hidden border border-editorial-border shrink-0">
               <SafeImage
-                src={article.author.avatar}
-                alt={article.author.name}
+                src={authorInfo.avatar}
+                alt={authorInfo.name}
                 fill
                 sizes="48px"
                 className="object-cover"
@@ -52,10 +81,10 @@ export default function ArticleCard({
             </div>
             <div>
               <h4 className="font-serif font-bold text-sm text-ink-900 group-hover:text-crimson transition-colors">
-                {article.author.name}
+                {authorInfo.name}
               </h4>
               <p className="text-[11px] font-sans text-ink-500 line-clamp-1">
-                {article.author.affiliation}
+                {authorInfo.affiliation}
               </p>
             </div>
           </div>
@@ -104,39 +133,38 @@ export default function ArticleCard({
               sizes="(max-width: 640px) 100vw, 224px"
               className="object-cover group-hover:scale-105 transition-transform duration-500"
             />
+            <div className="absolute top-2 left-2 bg-paper-ivory/90 px-1.5 py-0.5 border border-editorial-border text-[9px] font-mono uppercase font-bold text-ink-800">
+              {article.category.name}
+            </div>
           </Link>
         )}
 
-        <div className="flex-1 flex flex-col justify-between">
+        <div className="flex flex-col justify-between flex-1 min-w-0">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-crimson">
-                {article.category.name}
-              </span>
-              <span className="text-ink-300">·</span>
-              <span className="font-mono text-[11px] text-ink-500 flex items-center gap-1">
+            <div className="flex items-center gap-2 text-[11px] font-mono text-ink-500 mb-1.5">
+              <span>{formatDate(article.publishedAt)}</span>
+              <span>·</span>
+              <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 {article.readingTime}
               </span>
             </div>
 
-            <h3 className="font-serif text-lg sm:text-xl font-bold text-ink-950 leading-snug group-hover:text-crimson transition-colors mb-2">
+            <h3 className="font-serif text-base sm:text-lg font-bold text-ink-950 leading-snug group-hover:text-crimson transition-colors mb-2">
               <Link href={articleUrl} className="hover:underline underline-offset-2">
                 {article.title}
               </Link>
             </h3>
 
-            <p className="font-sans text-xs sm:text-sm text-ink-600 line-clamp-2 sm:line-clamp-3 leading-relaxed mb-3">
+            <p className="font-editorial text-xs sm:text-sm text-ink-700 line-clamp-2 leading-relaxed mb-3">
               {article.excerpt}
             </p>
           </div>
 
-          <div className="pt-3 border-t border-editorial-border/60 flex items-center justify-between text-xs font-mono text-ink-500">
+          <div className="pt-2 border-t border-editorial-border/60 flex items-center justify-between text-xs font-mono text-ink-500">
             <div className="flex items-center gap-2">
-              <span className="font-medium text-ink-800">By {article.author.name}</span>
-              <span className="text-ink-300 hidden md:inline">·</span>
-              <span className="hidden md:inline text-ink-500 truncate max-w-[160px]">
-                {article.author.affiliation}
+              <span className="truncate max-w-[140px] text-ink-900 font-medium">
+                By {authorInfo.name}
               </span>
             </div>
             <Link
@@ -177,7 +205,7 @@ export default function ArticleCard({
             </Link>
           </h4>
           <p className="text-xs font-mono text-ink-500">
-            By {article.author.name}
+            By {authorInfo.name}
           </p>
         </div>
       </article>
@@ -208,7 +236,7 @@ export default function ArticleCard({
           {article.excerpt}
         </p>
         <div className="flex items-center justify-between text-[11px] font-mono text-ink-500">
-          <span>By {article.author.name}</span>
+          <span>By {authorInfo.name}</span>
           <Link href={articleUrl} className="text-crimson font-medium">
             Read Brief →
           </Link>
@@ -281,16 +309,16 @@ export default function ArticleCard({
         <div className="flex items-center gap-2">
           <div className="relative w-6 h-6 rounded-full overflow-hidden border border-editorial-border shrink-0">
             <SafeImage
-              src={article.author.avatar}
-              alt={article.author.name}
+              src={authorInfo.avatar}
+              alt={authorInfo.name}
               fill
               sizes="24px"
               className="object-cover"
             />
           </div>
           <div className="truncate max-w-[150px]">
-            <p className="font-medium text-ink-900 truncate">{article.author.name}</p>
-            <p className="text-[10px] text-ink-500 truncate">{article.author.affiliation}</p>
+            <p className="font-medium text-ink-900 truncate">{authorInfo.name}</p>
+            <p className="text-[10px] text-ink-500 truncate">{authorInfo.affiliation}</p>
           </div>
         </div>
 

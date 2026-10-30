@@ -1,39 +1,33 @@
-import { Article, Category, IssueMetadata, MarketIndicator, PublicationIssue } from "@/lib/types";
+﻿import { Article, Category, IssueMetadata, MarketIndicator, PublicationIssue } from "@/lib/types";
 
 export const currentIssue: IssueMetadata = {
-  volume: "Vol. XXIV",
-  issueNumber: "No. 04",
+  volume: "Edition 001",
+  issueNumber: "001",
   dateString: "Mid-October 2026",
-  academicYear: "Academic Year 2026–27",
+  academicYear: "Academic Year 2026â€“27",
   theme: "The New Indian Enterprise: Talent, Capital, and the Hyderabad Nexus",
 };
 
 export const publicationIssues: PublicationIssue[] = [
   {
-    id: "issue-vol-24-no-04",
-    slug: "vol-24-issue-04",
-    volume: "Vol. XXIV",
-    issueNumber: "No. 04",
+    id: "issue-edition-001",
+    slug: "edition-001",
+    volume: "Edition 001",
+    issueNumber: "001",
     title: "The New Indian Enterprise: Talent, Capital, and the Hyderabad Nexus",
     description:
       "The flagship digital dossier of The Executive Brief examining Hyderabad's corporate GCC explosion, private equity capital across Genome Valley, empirical faculty governance research, and student dispatches from Dalal Street to regional handloom clusters.",
     dateString: "Mid-October 2026",
-    academicYear: "Academic Year 2026–27",
+    academicYear: "Academic Year 2026â€“27",
     isCurrent: true,
     coverStorySlug: "twin-cities-corridor-hyderabad-gcc-boom-management-education",
     coverImage: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=85",
     editorialNote:
-      "Curated by the Newsletter & Media Club under the auspices of the Department of Business Management, Osmania University. This demonstration volume marks the inaugural digital release for the academic year 2026–27.",
+      "Curated by the Newsletter & Media Club under the auspices of the Department of Business Management, Osmania University. This demonstration volume marks the inaugural digital release for the academic year 2026â€“27.",
   },
 ];
 
-export const marketIndicators: MarketIndicator[] = [
-  { symbol: "SENSEX", name: "BSE Sensex", value: "82,490.12", change: "+0.42%", isPositive: true },
-  { symbol: "NIFTY50", name: "NSE Nifty 50", value: "25,188.75", change: "+0.38%", isPositive: true },
-  { symbol: "HYD-GCC", name: "Telangana GCC Index", value: "1,420+", change: "+14.2% YoY", isPositive: true },
-  { symbol: "INR/USD", name: "USD to INR", value: "₹83.92", change: "-0.05%", isPositive: false },
-  { symbol: "DBM-PLACE", name: "Campus Median CTC", value: "₹14.8 LPA", change: "+18.5% YoY", isPositive: true },
-];
+export const marketIndicators: MarketIndicator[] = [];
 
 export const categories: Record<string, Category> = {
   specialReport: {
@@ -89,16 +83,16 @@ export const categories: Record<string, Category> = {
 export const leadStory: Article = {
   id: "lead-01",
   slug: "twin-cities-corridor-hyderabad-gcc-boom-management-education",
-  title: "The Twin Cities Corridor: How Hyderabad’s GCC Surge is Redefining Management Pedagogy",
+  title: "The Twin Cities Corridor: How Hyderabadâ€™s GCC Surge is Redefining Management Pedagogy",
   subtitle: "With over 1,400 Global Capability Centres anchored between HITEC City and the Financial District, corporate leaders are demanding a structural pivot in MBA curricula from traditional administration to algorithmic decision governance.",
   excerpt: "An extensive investigation into how Telangana's tech-corporate axis has reshaped recruitment at Osmania University, driving double-digit gains in consulting and analytics roles while pressing business schools to overhaul legacy frameworks.",
   category: categories.specialReport,
-  issueSlug: "vol-24-issue-04",
+  issueSlug: "edition-001",
   author: {
     id: "auth-01",
     name: "K. R. V. Narayana",
     role: "Editor-in-Chief",
-    affiliation: "MBA Class of 2025 · Newsletter & Media Club",
+    affiliation: "MBA Class of 2025 Â· Newsletter & Media Club",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80",
     bio: "Former financial analyst and current student editor focusing on South Indian industrial corridors, capital formation, and management education policy.",
   },
@@ -136,7 +130,7 @@ export const leadStory: Article = {
       id: "curriculum-recalibration",
       heading: "II. Recalibrating the Classroom: Beyond Pure Theory",
       paragraphs: [
-        "At the Department of Business Management, Osmania University—an institution rooted in over six decades of academic leadership—faculty boards have initiated a series of structural curriculum revisions. The traditional silo between quantitative finance and corporate strategy has been dismantled in favor of integrated managerial laboratory electives.",
+        "At the Department of Business Management, Osmania Universityâ€”an institution rooted in over six decades of academic leadershipâ€”faculty boards have initiated a series of structural curriculum revisions. The traditional silo between quantitative finance and corporate strategy has been dismantled in favor of integrated managerial laboratory electives.",
         "Rather than studying retrospective case studies of mid-20th-century industrial enterprises, candidates are now dissecting real-time enterprise telemetry: how currency volatility affects multi-currency liquidity pools, and how automated regulatory compliance regimes alter executive liability.",
       ],
       bulletPoints: [
@@ -150,7 +144,7 @@ export const leadStory: Article = {
       heading: "III. The Enduring Value of Judgement in an Algorithmic Era",
       paragraphs: [
         "Yet, amidst the rush toward predictive models and quantitative metrics, corporate recruiters visiting the Osmania campus emphasize a perennial reality: technical aptitude is merely table stakes. The defining asset of executive leadership remains ethical judgment, stakeholder diplomacy, and the capacity to lead through ambiguity.",
-        "As the 2026–27 academic year gets underway, the corridors of OU DBM reflect a campus mindful of its heritage but resolutely positioned at the cutting edge of modern enterprise governance.",
+        "As the 2026â€“27 academic year gets underway, the corridors of OU DBM reflect a campus mindful of its heritage but resolutely positioned at the cutting edge of modern enterprise governance.",
       ],
       callout: {
         title: "Executive Synthesis",
@@ -164,11 +158,11 @@ export const coverCompanionArticles: Article[] = [
   {
     id: "lead-comp-01",
     slug: "capital-inflow-pharma-city-biotech-ma",
-    title: "Pharma City’s Next Horizon: Private Equity Bets on Genome Valley Spin-Offs",
+    title: "Pharma Cityâ€™s Next Horizon: Private Equity Bets on Genome Valley Spin-Offs",
     subtitle: "Why global healthcare funds are bypassing traditional venture corridors to back mid-market bulk drug innovators in Telangana.",
     excerpt: "With over $2.4B invested across Genome Valley in the past 18 months, mid-tier Hyderabad pharma operators are turning to institutional private equity to finance US-FDA compliant automation.",
     category: categories.business,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-02",
       name: "Dr. Radhika V. Sastri",
@@ -195,12 +189,12 @@ export const coverCompanionArticles: Article[] = [
     subtitle: "A detailed breakdown of the 2026 early recruitment window at Department of Business Management, Osmania University.",
     excerpt: "Early trends indicate robust demand across BFSI risk advisory and product management, with international conglomerates expanding direct campus interviews on the OU campus.",
     category: categories.campus,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-03",
       name: "Aditya S. Chary",
       role: "Associate Editor",
-      affiliation: "MBA Class of 2026 · Placement Student Representative",
+      affiliation: "MBA Class of 2026 Â· Placement Student Representative",
       avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80",
       bio: "MBA candidate focusing on strategy and corporate relations, coordinating student executive placement activities.",
     },
@@ -228,7 +222,7 @@ export const briefingStripItems = [
   {
     id: "brief-2",
     label: "CAMPUS ARCHIVE",
-    headline: "OU DBM marks 64 years of management excellence: Alumni Foundation announces ₹5 Crore endowment for faculty research fellowships.",
+    headline: "OU DBM marks 64 years of management excellence: Alumni Foundation announces â‚¹5 Crore endowment for faculty research fellowships.",
     time: "4h ago",
     slug: "sixty-four-years-of-dbm-legacy-to-frontier",
   },
@@ -256,12 +250,12 @@ export const businessArticles: Article[] = [
     subtitle: "Heavy industry conglomerates around the Hyderabad-Warangal belt are securing long-term power purchase agreements for green hydrogen.",
     excerpt: "How forward-thinking manufacturing CFOs are balancing near-term Capex spikes against stringent EU carbon border adjustment mechanisms.",
     category: categories.business,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-04",
       name: "Siddharth Ramamurthy",
       role: "Senior Contributor",
-      affiliation: "MBA Class of 2025 · Energy & Infrastructure Lead",
+      affiliation: "MBA Class of 2025 Â· Energy & Infrastructure Lead",
       avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80",
     },
     publishedAt: "2026-10-11T12:00:00Z",
@@ -277,16 +271,16 @@ export const businessArticles: Article[] = [
   {
     id: "biz-02",
     slug: "fintech-credit-underwriting-msme-tier-2-cities",
-    title: "Algorithmic Underwriting: Unlocking Credit for Telangana’s Micro-Enterprises",
+    title: "Algorithmic Underwriting: Unlocking Credit for Telanganaâ€™s Micro-Enterprises",
     subtitle: "Alternative data scoring is bypassing legacy collateral models to finance textile and agricultural processing hubs.",
     excerpt: "Field research reveals a 42% faster loan approval rate across rural cooperatives adopting digital transaction trail scoring.",
     category: categories.business,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-05",
       name: "Ananya Rao",
       role: "Staff Writer",
-      affiliation: "MBA Class of 2026 · Banking & Financial Markets",
+      affiliation: "MBA Class of 2026 Â· Banking & Financial Markets",
       avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=80",
     },
     publishedAt: "2026-10-10T14:20:00Z",
@@ -306,12 +300,12 @@ export const businessArticles: Article[] = [
     subtitle: "Foreign institutional REITs report record lease renewals in Madhapur and Gachibowli amid sustained global workforce expansions.",
     excerpt: "Institutional yields continue to outperform traditional metropolitan peers as infrastructure projects like the Metro Phase 2 decongest transit routes.",
     category: categories.business,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-01",
       name: "K. R. V. Narayana",
       role: "Editor-in-Chief",
-      affiliation: "MBA Class of 2025 · Newsletter & Media Club",
+      affiliation: "MBA Class of 2025 Â· Newsletter & Media Club",
       avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80",
     },
     publishedAt: "2026-10-09T09:15:00Z",
@@ -330,7 +324,7 @@ export const campusArticles: Article[] = [
     subtitle: "A historical retrospection on the Department of Business Management, Osmania University, founded in 1962 under visionary leadership.",
     excerpt: "As one of South India's oldest university business schools, OU DBM has seeded CEOs, civil servants, policymakers, and entrepreneurial pioneers across the globe.",
     category: categories.campus,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-06",
       name: "Prof. P. Venkataswamy",
@@ -356,12 +350,12 @@ export const campusArticles: Article[] = [
     subtitle: "MBA candidates partner with state weavers' cooperatives to implement digital inventory reconciliation and direct D2C logistics.",
     excerpt: "Bridging classroom operations theory with grassroots commerce, the 8-week field intervention helped artisanal weavers recover a 19% margin previously lost to intermediaries.",
     category: categories.campus,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-07",
       name: "Meera Krishnan",
       role: "Social Impact Lead",
-      affiliation: "MBA Class of 2026 · Consulting & Social Enterprise Club",
+      affiliation: "MBA Class of 2026 Â· Consulting & Social Enterprise Club",
       avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&q=80",
     },
     publishedAt: "2026-10-07T15:45:00Z",
@@ -377,12 +371,12 @@ export const campusArticles: Article[] = [
     subtitle: "Senior leaders from London, Singapore, New York, and Mumbai assemble at the University Club to mentor the upcoming batch.",
     excerpt: "Over 40 executive alumni conducted one-on-one leadership diagnostic clinics, resume clinics, and corporate navigation seminars for the Class of 2026.",
     category: categories.campus,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-03",
       name: "Aditya S. Chary",
       role: "Associate Editor",
-      affiliation: "MBA Class of 2026 · Placement Student Representative",
+      affiliation: "MBA Class of 2026 Â· Placement Student Representative",
       avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80",
     },
     publishedAt: "2026-10-06T13:00:00Z",
@@ -401,7 +395,7 @@ export const researchArticles: Article[] = [
     subtitle: "An empirical examination of 120 family-managed conglomerates navigating succession transitions, board independence, and minority shareholder rights.",
     excerpt: "Department faculty study proves that structured family council charters combined with independent audit board chairs correlate with a 24% reduction in enterprise valuation volatility during leadership handovers.",
     category: categories.research,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-08",
       name: "Dr. K. Srinivas Rao",
@@ -453,11 +447,11 @@ export const researchArticles: Article[] = [
   {
     id: "res-02",
     slug: "behavioral-finance-retail-investor-derivatives-nse",
-    title: "The Gambler’s Premise: Behavioral Biases in High-Frequency Retail Options Trading",
+    title: "The Gamblerâ€™s Premise: Behavioral Biases in High-Frequency Retail Options Trading",
     subtitle: "Why the surge in zero-commission retail F&O volume in Tier-2/3 Indian cities warrants proactive behavioral nudges rather than blanket prohibitions.",
     excerpt: "Examining 450,000 anonymised trading logs, OU DBM behavioral finance researchers highlight the psychological triggers driving loss-chasing among post-pandemic retail market entrants.",
     category: categories.research,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-02",
       name: "Dr. Radhika V. Sastri",
@@ -482,7 +476,7 @@ export const researchArticles: Article[] = [
     subtitle: "A collaborative whitepaper between OU DBM Operations Lab and Indian Vaccine Manufacturers on preventing transit excursion losses.",
     excerpt: "Real-time IoT sensor telemetry combined with neural path prediction reduces temperature excursion scrap rates to under 0.08% across complex pan-India transit corridors.",
     category: categories.research,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-09",
       name: "Dr. Sandhya V. Murthy",
@@ -502,16 +496,16 @@ export const voicesArticles: Article[] = [
   {
     id: "voice-01",
     slug: "from-engineering-to-boardroom-the-mba-inflection",
-    title: "Beyond the Syntax: Unlearning the Engineer’s Dogma in the First Year of Business School",
+    title: "Beyond the Syntax: Unlearning the Engineerâ€™s Dogma in the First Year of Business School",
     subtitle: "How moving from deterministic code loops to ambiguous organizational dynamics tests every prior instinct of a technical graduate.",
     excerpt: "In engineering, 2+2 reliably equals 4. In corporate leadership, people bring emotional liabilities, misaligned incentives, and conflicting agendas into every decision meeting. Here is how the DBM case method cured my hubris.",
     category: categories.voices,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-10",
       name: "Pranav Teja",
       role: "Student Columnist",
-      affiliation: "MBA Class of 2025 · Former Software Engineer at Infosys",
+      affiliation: "MBA Class of 2025 Â· Former Software Engineer at Infosys",
       avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=256&q=80",
       bio: "MBA scholar with four years of software engineering experience, writing on human capital and organizational strategy.",
     },
@@ -525,15 +519,15 @@ export const voicesArticles: Article[] = [
     id: "voice-02",
     slug: "summer-chronicles-mumbai-investment-banking",
     title: "100-Hour Weeks and Pitch Book Precision: Dispatches from a Dalal Street Summer",
-    subtitle: "An unvarnished account of an OU DBM candidate’s eight weeks inside an institutional M&A advisory desk.",
+    subtitle: "An unvarnished account of an OU DBM candidateâ€™s eight weeks inside an institutional M&A advisory desk.",
     excerpt: "You learn quickly that financial modeling is barely half the game. The real discipline lies in managing client optics under exhaustion, verifying footnote assumptions, and defending valuations before senior partners.",
     category: categories.voices,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-11",
       name: "Sanya Fatima",
       role: "Student Columnist",
-      affiliation: "MBA Class of 2025 · Summer Analyst at ICICI Securities",
+      affiliation: "MBA Class of 2025 Â· Summer Analyst at ICICI Securities",
       avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80",
     },
     publishedAt: "2026-10-01T09:00:00Z",
@@ -549,12 +543,12 @@ export const voicesArticles: Article[] = [
     subtitle: "A critique of classical agency theory through the eyes of an emerging cohort conscious of climate risks.",
     excerpt: "As future managers inheriting a planet stressed by ecological overshoot, we can no longer afford to treat social negative externalities as harmless footnotes in discounted cash flow spreadsheets.",
     category: categories.voices,
-    issueSlug: "vol-24-issue-04",
+    issueSlug: "edition-001",
     author: {
       id: "auth-04",
       name: "Siddharth Ramamurthy",
       role: "Senior Contributor",
-      affiliation: "MBA Class of 2025 · Energy & Infrastructure Lead",
+      affiliation: "MBA Class of 2025 Â· Energy & Infrastructure Lead",
       avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80",
     },
     publishedAt: "2026-09-28T14:30:00Z",
