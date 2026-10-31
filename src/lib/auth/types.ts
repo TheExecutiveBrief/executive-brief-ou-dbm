@@ -18,6 +18,43 @@ export type EditorialRole =
   | "contributor"
   | "reader";
 
+export const VALID_ROLES: readonly EditorialRole[] = [
+  "admin",
+  "editorial",
+  "section_writer",
+  // Legacy aliases supported for compatibility
+  "administrator",
+  "editor_in_chief",
+  "section_editor",
+  "staff_writer",
+  "contributor",
+  "reader",
+] as const;
+
+/**
+ * Normalizes any valid database role (canonical or legacy) into the canonical 3-tier publication hierarchy:
+ * 1. 'admin': System Administrator with full access to settings, user governance, and publication
+ * 2. 'editorial': Editorial Desk with publication, article, issue, and submission controls
+ * 3. 'section_writer': Student Contributor / Writer (no administrative access)
+ */
+export function normalizeEditorialRole(role?: EditorialRole | string | null): EditorialRole {
+  switch (role) {
+    case "admin":
+    case "administrator":
+      return "admin";
+    case "editorial":
+    case "editor_in_chief":
+    case "section_editor":
+      return "editorial";
+    case "section_writer":
+    case "staff_writer":
+    case "contributor":
+      return "section_writer";
+    default:
+      return "reader";
+  }
+}
+
 export type AccountStatus =
   | "pending"
   | "approved"

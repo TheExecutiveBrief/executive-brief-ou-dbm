@@ -1,15 +1,12 @@
 
-import { EditorialSession, EditorialUser, EditorialRole } from "./types";
+import {
+  EditorialSession,
+  EditorialUser,
+  EditorialRole,
+  VALID_ROLES,
+  normalizeEditorialRole,
+} from "./types";
 
-const VALID_ROLES: EditorialRole[] = [
-  "administrator",
-  "editor_in_chief",
-  "section_editor",
-  "section_writer",
-  "staff_writer",
-  "contributor",
-  "reader",
-];
 
 export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

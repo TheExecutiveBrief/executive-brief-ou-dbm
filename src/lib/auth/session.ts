@@ -7,6 +7,8 @@ import {
   EditorialUser,
   EditorialRole,
   permissions,
+  VALID_ROLES,
+  normalizeEditorialRole,
 } from "./types";
 import {
   isSupabaseConfigured,
@@ -17,15 +19,6 @@ import {
 export const SESSION_COOKIE_NAME = "executive_brief_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7;
 
-const VALID_ROLES: EditorialRole[] = [
-  "administrator",
-  "editor_in_chief",
-  "section_editor",
-  "section_writer",
-  "staff_writer",
-  "contributor",
-  "reader",
-];
 
 function getSigningSecret(): string {
   const secret = process.env.SESSION_SECRET;
