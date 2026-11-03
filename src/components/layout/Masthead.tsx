@@ -42,9 +42,7 @@ export default async function Masthead() {
           </div>
 
           <div className="flex items-center gap-3 font-mono text-[11px] text-ink-600">
-            <span className="italic text-ink-500 tracking-wide">
-              &ldquo;Tamaso Ma Jyotirgamaya&rdquo;
-            </span>
+            
             <span className="text-ink-400">|</span>
             <span className="font-semibold text-crimson uppercase tracking-wider">
               Newsletter & Media Club
