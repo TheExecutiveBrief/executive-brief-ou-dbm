@@ -26,7 +26,7 @@ export async function POST(request: Request) {
           apikey: anonKey,
           Authorization: `Bearer ${anonKey}`,
           "Content-Type": "application/json",
-          Prefer: "return=representation",
+          Prefer: "return=minimal",
         },
         body: JSON.stringify({
           email,
