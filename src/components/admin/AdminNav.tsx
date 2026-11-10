@@ -24,6 +24,7 @@ import {
   Briefcase,
   Lightbulb,
   MessageSquare,
+  Mail,
 } from "lucide-react";
 
 interface AdminNavProps {
@@ -57,6 +58,7 @@ export default function AdminNav({ user }: AdminNavProps) {
       // 17 ADMIN DASHBOARD NAVIGATION SECTIONS
       return [
         { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
+        { name: "Newsletter Centre", href: "/admin/newsletter", icon: Mail, exact: false, badge: "Dispatch" },
         { name: "Submissions", href: "/admin/submissions", icon: Inbox, exact: false, badge: "Student" },
         { name: "Articles & Publications", href: "/admin/articles", icon: FileText, exact: true },
         { name: "All Publication Sections", href: "/admin/desks", icon: Layers, exact: false },
@@ -79,6 +81,7 @@ export default function AdminNav({ user }: AdminNavProps) {
     // 13 EDITORIAL DASHBOARD NAVIGATION SECTIONS
     return [
       { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
+      { name: "Newsletter Centre", href: "/admin/newsletter", icon: Mail, exact: false, badge: "Dispatch" },
       { name: "Student Submissions", href: "/admin/submissions", icon: Inbox, exact: false, badge: "Student" },
       { name: "Articles & Publications", href: "/admin/articles", icon: FileText, exact: true },
       { name: "Business & Markets", href: "/admin/articles?desk=business", icon: Briefcase, exact: false },

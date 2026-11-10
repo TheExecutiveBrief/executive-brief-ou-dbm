@@ -38,7 +38,16 @@ import {
   Users,
   EyeOff,
   FileEdit,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
+import { resolveImageUrl } from "@/lib/imageResolver";
+import {
+  hasMeaningfulText,
+  hasValidPullQuote,
+  hasValidCallout,
+  isMeaningfulSection,
+} from "@/lib/utils";
 
 interface ArticleEditorFormProps {
   initialArticle?: Partial<Article>;
@@ -289,7 +298,68 @@ export default function ArticleEditorForm({
   }, [isDirty]);
 
   const canPublish = permissions.canPublish(currentUser.role);
+  const canArchive = permissions.canArchive(currentUser.role);
   const canDelete = permissions.canDeleteArticle(currentUser.role);
+
+  // Cover image upload & resolver state
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverUploadNotice, setCoverUploadNotice] = useState<string | null>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverUrlChange = (val: string) => {
+    const trimmed = val.trim();
+    if (trimmed.includes("drive.google.com")) {
+      const resolved = resolveImageUrl(trimmed);
+      setCoverImage(resolved);
+      setCoverUploadNotice("✓ Resolved Google Drive share link to direct CDN image URL.");
+      setTimeout(() => setCoverUploadNotice(null), 5000);
+    } else {
+      setCoverImage(val);
+      setCoverUploadNotice(null);
+    }
+  };
+
+  const handleCoverFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setFeedback({ type: "error", message: "Invalid file type. Please select an image file." });
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      setFeedback({ type: "error", message: "File exceeds 20MB limit." });
+      return;
+    }
+
+    setIsUploadingCover(true);
+    setCoverUploadNotice(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", "covers");
+
+      const res = await fetch("/api/admin/media", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to upload cover image.");
+
+      setCoverImage(data.file.url);
+      setCoverUploadNotice("✓ Cover image uploaded to Supabase Storage media bucket!");
+      setTimeout(() => setCoverUploadNotice(null), 5000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Image upload failed.";
+      setFeedback({ type: "error", message: msg });
+    } finally {
+      setIsUploadingCover(false);
+      if (coverFileInputRef.current) coverFileInputRef.current.value = "";
+    }
+  };
 
   // Generate slug automatically from title when empty
   const handleTitleBlur = () => {
@@ -386,28 +456,72 @@ export default function ArticleEditorForm({
     setBodySections(bodySections.filter((_, i) => i !== index));
   };
 
-  const getCurrentFormData = () => ({
-    title,
-    subtitle,
-    slug: slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-    excerpt: excerpt || title,
-    categoryId,
-    authorId,
-    authorDisplayMode,
-    customAuthorName: authorDisplayMode === "student" ? customAuthorName : undefined,
-    readingTime,
-    coverImage,
-    imageCaption,
-    isLeadStory,
-    isEditorPick,
-    isBreaking,
-    edition,
-    issueSlug,
-    tags,
-    keyTakeaways,
-    metrics,
-    bodySections,
-  });
+  const getCurrentFormData = () => {
+    // Sanitize bodySections to strip empty quotes, callouts and empty blocks
+    const sanitizedSections = bodySections
+      .map((sec) => {
+        const cleanQuote =
+          sec.pullQuote && sec.pullQuote.quote && sec.pullQuote.quote.trim().length > 0
+            ? {
+                quote: sec.pullQuote.quote.trim(),
+                attribution:
+                  sec.pullQuote.attribution && sec.pullQuote.attribution.trim().length > 0
+                    ? sec.pullQuote.attribution.trim()
+                    : undefined,
+              }
+            : undefined;
+
+        const cleanCallout =
+          sec.callout &&
+          ((sec.callout.title && sec.callout.title.trim().length > 0) ||
+            (sec.callout.content && sec.callout.content.trim().length > 0))
+            ? {
+                title: sec.callout.title ? sec.callout.title.trim() : "",
+                content: sec.callout.content ? sec.callout.content.trim() : "",
+              }
+            : undefined;
+
+        return {
+          ...sec,
+          heading: sec.heading ? sec.heading.trim() : "",
+          paragraphs: (sec.paragraphs || []).map((p) => p.trim()).filter(Boolean),
+          bulletPoints: (sec.bulletPoints || []).map((bp) => bp.trim()).filter(Boolean),
+          pullQuote: cleanQuote,
+          callout: cleanCallout,
+        };
+      })
+      .filter(
+        (sec) =>
+          sec.heading ||
+          sec.paragraphs.length > 0 ||
+          (sec.bulletPoints && sec.bulletPoints.length > 0) ||
+          sec.pullQuote ||
+          sec.callout
+      );
+
+    return {
+      title,
+      subtitle,
+      slug: slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      excerpt: excerpt || title,
+      categoryId,
+      authorId,
+      authorDisplayMode,
+      customAuthorName: authorDisplayMode === "student" ? customAuthorName : undefined,
+      readingTime,
+      coverImage,
+      imageCaption,
+      isLeadStory,
+      isEditorPick,
+      isBreaking,
+      edition,
+      issueSlug,
+      tags,
+      keyTakeaways,
+      metrics,
+      bodySections: sanitizedSections,
+    };
+  };
 
   // Save Working Draft Copy for Published Articles
   const handleSaveDraftWorkingCopy = async () => {
@@ -451,7 +565,7 @@ export default function ArticleEditorForm({
     if (!canPublish) {
       setFeedback({
         type: "error",
-        message: "Permission Denied: Only Chief Editors and Administrators can publish working draft updates.",
+        message: "Permission Denied: Only Editorial Editors and Administrators can publish working draft updates.",
       });
       return;
     }
@@ -576,12 +690,12 @@ export default function ArticleEditorForm({
       setFeedback({
         type: "error",
         message:
-          "Permission Denied: Only Chief Editors and Administrators can publish dispatches.",
+          "Permission Denied: Only Editorial Editors and Administrators can publish dispatches.",
       });
       return;
     }
 
-    if (finalStatus === "archived" && !canPublish) {
+    if (finalStatus === "archived" && !canArchive) {
       setFeedback({
         type: "error",
         message:
@@ -1273,7 +1387,7 @@ export default function ArticleEditorForm({
 
                 <label
                   className={`flex items-center gap-2 text-xs ${
-                    canPublish
+                    canArchive
                       ? "text-ink-800 cursor-pointer"
                       : "text-ink-400 cursor-not-allowed"
                   }`}
@@ -1282,13 +1396,13 @@ export default function ArticleEditorForm({
                     type="radio"
                     name="status"
                     value="archived"
-                    disabled={!canPublish}
+                    disabled={!canArchive}
                     checked={status === "archived"}
                     onChange={() => setStatus("archived")}
                     className="text-crimson focus:ring-crimson disabled:opacity-50"
                   />
                   <span>Archived</span>
-                  {!canPublish && <Lock className="w-3 h-3 text-ink-400 ml-1" />}
+                  {!canArchive && <Lock className="w-3 h-3 text-ink-400 ml-1" />}
                 </label>
               </div>
 
@@ -1297,7 +1411,17 @@ export default function ArticleEditorForm({
                   <p className="flex items-start gap-1.5">
                     <Lock className="w-3.5 h-3.5 text-ink-500 shrink-0 mt-0.5" />
                     <span>
-                      Publishing and archiving are restricted to the Chief Editor and Administrator.
+                      Publishing is restricted to Editorial Editors and Administrators.
+                    </span>
+                  </p>
+                </div>
+              )}
+              {canPublish && !canArchive && (
+                <div className="mt-3 p-2.5 rounded bg-paper-100 border border-editorial-border/60 text-[11px] text-ink-600">
+                  <p className="flex items-start gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-ink-400 shrink-0 mt-0.5" />
+                    <span>
+                      Archiving requires Chief Editor or Administrator authorization.
                     </span>
                   </p>
                 </div>

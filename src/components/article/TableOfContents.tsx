@@ -3,13 +3,14 @@
 import React from "react";
 import { ArticleSection } from "@/lib/types";
 import { ListFilter } from "lucide-react";
+import { hasMeaningfulText } from "@/lib/utils";
 
 interface TableOfContentsProps {
   sections: ArticleSection[];
 }
 
 export default function TableOfContents({ sections }: TableOfContentsProps) {
-  const headings = sections.filter((s) => s.heading);
+  const headings = sections.filter((s) => hasMeaningfulText(s.heading));
   if (headings.length < 2) return null;
 
   return (

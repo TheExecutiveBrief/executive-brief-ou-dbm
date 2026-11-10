@@ -561,13 +561,27 @@ export class LocalContentRepository implements ContentRepository {
     const prevStage = article.workflowStage || "draft";
     let nextStage = prevStage;
 
-    if (params.action === "submit_review") nextStage = "editorial_review";
-    else if (params.action === "approve") nextStage = "published";
-    else if (params.action === "publish") {
+    if (params.action === "publish" || params.action === "approve_and_publish" || params.action === "approve") {
       nextStage = "published";
       article.status = "published";
       article.publishedAt = new Date().toISOString();
-    } else if (params.action === "unpublish") {
+    } else if (params.action === "unpublish" || params.action === "unpublish_to_draft") {
+      nextStage = "draft";
+      article.status = "draft";
+    } else if (params.action === "submit_review" || params.action === "submit_for_editorial_review") {
+      nextStage = "editorial_review";
+      article.status = "in_review";
+    } else if (params.action === "forward_to_chief") {
+      nextStage = "chief_review";
+      article.status = "in_review";
+    } else if (params.action === "return_for_revision") {
+      nextStage = "revision_requested";
+      article.status = "draft";
+      article.lastRevisionReason = params.revisionReason;
+    } else if (params.action === "archive") {
+      nextStage = "archived";
+      article.status = "archived";
+    } else if (params.action === "restore_from_archive") {
       nextStage = "draft";
       article.status = "draft";
     }
@@ -578,9 +592,11 @@ export class LocalContentRepository implements ContentRepository {
       actorId: user?.id || "system",
       actorName: user?.fullName,
       actorRole: user?.role,
+      actorEmail: user?.email,
       action: params.action,
       fromStage: prevStage,
       toStage: nextStage,
+      revisionReason: params.revisionReason,
       notes: params.notes,
     });
 

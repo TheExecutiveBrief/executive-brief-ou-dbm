@@ -166,17 +166,17 @@ export async function POST(request: Request) {
       }
 
       case "approve_and_publish": {
-        // Only Chief Editors and Administrators may publish
+        // Editorial Editors, Chief Editors, and Administrators may publish eligible drafts
         if (!permissions.canPublish(user.role)) {
           return NextResponse.json(
             {
-              error: "Permission Denied: Only Chief Editors and Administrators can publish articles to the live journal.",
+              error: "Permission Denied: Only Editorial Editors and Administrators can publish articles to the live journal.",
             },
             { status: 403 }
           );
         }
 
-        // Chief Editors and Administrators may publish from any pre-publication stage.
+        // Publishing is allowed from draft, editorial_review, or chief_review stages
         if (currentStage === "published" || currentStage === "archived") {
           return NextResponse.json(
             {
@@ -194,7 +194,7 @@ export async function POST(request: Request) {
       case "unpublish_to_draft": {
         if (!permissions.canPublish(user.role)) {
           return NextResponse.json(
-            { error: "Permission Denied: Only Chief Editors and Administrators can unpublish articles." },
+            { error: "Permission Denied: Only Editorial Editors and Administrators can unpublish articles." },
             { status: 403 }
           );
         }
@@ -213,7 +213,7 @@ export async function POST(request: Request) {
 
       case "archive": {
         // Only Chief Editors and Administrators may archive articles
-        if (!permissions.canPublish(user.role)) {
+        if (!permissions.canArchive(user.role)) {
           return NextResponse.json(
             { error: "Permission Denied: Only Chief Editors and Administrators can archive articles." },
             { status: 403 }
@@ -226,7 +226,7 @@ export async function POST(request: Request) {
       }
 
       case "restore_from_archive": {
-        if (!permissions.canPublish(user.role)) {
+        if (!permissions.canArchive(user.role)) {
           return NextResponse.json(
             { error: "Permission Denied: Only Chief Editors and Administrators can restore articles from the archive." },
             { status: 403 }

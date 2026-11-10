@@ -1,0 +1,614 @@
+<USER_REQUEST>
+# MASTER PROMPT — THE EXECUTIVE BRIEF: EDITORIAL WORKFLOW, IMAGE SYSTEM, ARTICLE DESIGN & STUDENT SUBMISSIONS FIX
+
+You are working on **The Executive Brief**, the official newsletter and media platform of the Department of Business Management, Osmania University.
+
+Website: https://teboudbm.vercel.app  
+Supabase project: `nhszuhtnojqcnlbwuuzv`  
+Supabase URL: `https://nhszuhtnojqcnlbwuuzv.supabase.co`
+
+Your task is to conduct a complete technical audit, identify the root causes of the problems described below, and implement reliable, production-ready fixes.
+
+**IMPORTANT: Do not just explain the problems or provide suggestions. Inspect the actual codebase, database schema, Supabase functions, triggers, RLS policies, frontend components and server-side queries. Implement and verify the fixes.**
+
+I authorize you to make all necessary changes to the application and Supabase database, including:
+- Creating or modifying database functions and RPCs.
+- Modifying triggers and workflow validation logic.
+- Updating RLS policies where genuinely necessary.
+- Adding or modifying database columns and tables where justified.
+- Updating frontend and backend components.
+- Modifying image-handling architecture.
+- Creating database migrations and applying them to the connected project where supported.
+
+However, this permission does NOT authorize careless changes. Preserve existing data, security, audit history and working functionality. Never delete existing articles, student submissions, users, editorial profiles or historical records as a workaround.
+
+---
+
+# PART 1 — FIX EMPTY QUOTATION MARKS AND EMPTY CONTENT BLOCKS
+
+## Current problem
+
+On the published article page, an empty quotation/callout component appears even when no quotation has been entered.
+
+For example, the article currently displays:
+
+- A quotation mark icon.
+- An empty quotation box.
+- A blank bordered section underneath.
+
+This creates an unprofessional reading experience.
+
+I have provided a screenshot showing the exact issue.
+
+## Required behaviour
+
+1. If a quotation is empty, do not render the quotation component.
+2. If the quotation text is missing, null, undefined or contains only whitespace, render nothing.
+3. If a quotation attribution is empty, do not display an empty attribution area.
+4. If a callout has no title and no content, do not render it.
+5. If a section has no heading, paragraphs, bullet points, image, quote or meaningful content, do not render the empty section.
+6. Do not leave empty margins, padding, borders, dividers or reserved space for components that are not rendered.
+7. Render quotation marks only when an actual quotation exists.
+8. Preserve properly populated quotations and callouts exactly as intended.
+
+Check every article rendering component, including:
+- Article detail pages.
+- Article preview pages.
+- Editorial previews.
+- Student submission previews.
+- Homepage article cards where applicable.
+
+**Important:** Do not remove quotation functionality. Make the components conditional based on actual content.
+
+Test with:
+- Completely empty quotation.
+- Quotation with text but no attribution.
+- Quotation with both text and attribution.
+- Empty callout.
+- Populated callout.
+- Empty article section.
+
+---
+
+# PART 2 — FIX EDITORIAL PUBLISHING PERMISSIONS AND WORKFLOW
+
+## Current problem
+
+When an Editorial Editor submits or publishes an article, the application returns:
+
+`Supabase query failed: 400 Bad Request - {"code":"P0001","details":null,"hint":null,"message":"Permission Denied: Editorial Editors cannot modify published or archived articles directly."}`
+
+The intended requirement is:
+
+**Editorial Editors must have the authority to publish articles directly.**
+
+The editorial workflow must not incorrectly block an authorized Editorial Editor from publishing an article.
+
+There are existing database functions and triggers, including:
+
+- `validate_article_workflow_insert()`
+- `validate_article_workflow_update()`
+- `submit_article_workflow_transition()`
+
+There is an existing `article_workflow_audit` system. Preserve and use it.
+
+## Required role permissions
+
+Audit the actual `editorial_profiles` roles and existing role definitions before making changes.
+
+Implement a clear permission matrix:
+
+| Action | Writer / Contributor | Editorial Editor | Editor-in-Chief / Administrator |
+|---|---|---|---|
+| Create own draft | Yes | Yes | Yes |
+| Edit own draft | Yes | Yes | Yes |
+| Submit for editorial review | Yes | Yes | Yes |
+| Review articles | No | Yes | Yes |
+| Forward to Chief Editor | No | As configured by existing workflow | Yes |
+| Return for revision | No | Yes | Yes |
+| Publish an eligible draft | No | Yes | Yes |
+| Archive article | No | No, unless existing explicit authorization says otherwise | Yes |
+| Restore archived article | No | No, unless explicitly authorized | Yes |
+
+The Editorial Editor must be able to publish eligible articles directly without requiring an unnecessary Chief Editor approval step.
+
+## Critical distinction: Published article editing
+
+Do not confuse these two operations:
+
+A. Publishing an unpublished draft.
+
+B. Editing an article that is already published.
+
+Editorial Editors must be able to publish eligible drafts.
+
+For already published articles, preserve a safe editing process:
+- Create or use a draft working copy.
+- Allow the Editorial Editor to make revisions to that working copy.
+- Preserve the currently published version until the revised version is approved and published.
+- Do not silently overwrite live published content.
+- Allow authorized republishing through a controlled workflow.
+
+If the existing `draft_data` and `has_draft_changes` fields support this, inspect and reuse them rather than creating duplicate functionality.
+
+## Audit the RPC and triggers
+
+Inspect `submit_article_workflow_transition()` and all related trigger functions.
+
+Ensure the following actions work correctly:
+
+- `submit_for_editorial_review`
+- `forward_to_chief`
+- `return_for_revision`
+- `approve_and_publish`
+- `unpublish_to_draft`
+- `archive`
+- `restore_from_archive`
+
+Enforce action-to-role permissions inside the RPC itself, not only through an UPDATE trigger.
+
+Requirements:
+1. An approved, active Editorial Editor can execute `approve_and_publish` for eligible articles.
+2. The publishing trigger must recognize the Editorial Editor's authorized role.
+3. The RPC must set `published_by` to the authenticated user's ID.
+4. The RPC must set `published_at` correctly.
+5. The status and workflow stage must remain consistent.
+6. Every successful transition must create the appropriate audit record.
+7. Unauthorized users must remain blocked.
+8. Writers must not gain publishing permissions.
+9. Editors must not gain unauthorized archive permissions.
+10. Published and archived article protections must remain intact.
+
+## Investigate the actual error
+
+Do not merely remove the error message or disable the trigger.
+
+Identify:
+- Which article ID caused the error.
+- Whether the article was already published or still a draft.
+- Whether the frontend is sending the correct article ID.
+- Whether the email submission handler is calling the wrong update/RPC.
+- Whether the authenticated user role is being resolved correctly.
+- Whether the application is updating the live article instead of a draft working copy.
+- Whether any frontend action is making an unnecessary update to an already published article.
+
+Correct the actual cause.
+
+## Ownership and legacy records
+
+Some articles inserted through the Supabase SQL Editor have `created_by = NULL`.
+
+Do not assume every article with a null owner is invalid.
+
+Inspect the workflow and determine how authorized editors should manage these legacy records. Do not arbitrarily assign ownership to a user or remove ownership checks for writers.
+
+---
+
+# PART 3 — UNIVERSAL ARTICLE IMAGE URL SUPPORT
+
+## Current problem
+
+The website currently depends on a limited number of external image hosts.
+
+The Next.js configuration previously contained specific hosts such as:
+
+- images.unsplash.com
+- images.openai.com
+- thumbs.dreamstime.com
+
+An iStock image URL was saved successfully in `articles.cover_image_url`, but the frontend displayed:
+
+`/images/article-image-unavailable.svg`
+
+I do not want editors to keep modifying `next.config.mjs` every time they choose a different image provider.
+
+## Main requirement
+
+**The editorial system should accept publicly accessible image URLs from any legitimate image-hosting website, rather than restricting editors to a predefined list of domains.**
+
+Examples include:
+- Google-hosted images.
+- Google Drive image links.
+- Google Photos links, where accessible.
+- iStock.
+- Shutterstock.
+- Getty Images.
+- Unsplash.
+- Pexels.
+- Pixabay.
+- Dreamstime.
+- Wikimedia Commons.
+- Supabase Storage.
+- Other publicly accessible image-hosting services.
+
+Do not hardcode a short list of image domains as the only accepted sources.
+
+## Technical implementation
+
+Audit the current image rendering architecture.
+
+Determine whether the issue comes from:
+- `next/image` remote domain restrictions.
+- Next.js image optimization.
+- External hotlink protection.
+- Expired URLs.
+- Non-direct image URLs.
+- Google Drive sharing URLs.
+- Authentication-protected images.
+- Incorrect URL transformations.
+- Frontend image error handling.
+
+Implement an appropriate architecture.
+
+### A. Support arbitrary direct image URLs
+
+Where appropriate, use standard browser image rendering for externally hosted images rather than requiring Next.js remote host registration.
+
+An external image should not fail merely because its hostname is absent from `remotePatterns`.
+
+### B. Handle Google Drive and other sharing links
+
+Editors may paste links copied from Google Drive or other cloud services.
+
+Implement a URL resolver for supported sharing-link formats.
+
+Where a provider offers a reliable direct image URL, resolve it before rendering.
+
+Do not assume that every Google search result, webpage, or sharing link is an image file.
+
+If a link requires authentication, has expired, or cannot provide publicly accessible image content, display a useful validation message.
+
+### C. Image proxy or ingestion system
+
+Evaluate whether a secure server-side image proxy or Supabase Storage ingestion system is the best approach for reliable rendering.
+
+If implementing an image proxy:
+- Only allow HTTP/HTTPS URLs.
+- Block localhost, private IP ranges, link-local addresses and internal services.
+- Validate every redirect destination.
+- Prevent SSRF vulnerabilities.
+- Enforce reasonable file-size limits.
+- Validate actual image content types.
+- Reject HTML, scripts and non-image responses.
+- Set appropriate timeouts.
+- Prevent unbounded downloads.
+- Do not expose private server credentials.
+
+If an image is publicly accessible and can be safely retrieved, support rendering it without manual domain configuration.
+
+### D. Supabase Storage
+
+Use the existing Supabase Storage infrastructure as the preferred permanent storage solution.
+
+Provide a way to upload article cover images directly from the editorial dashboard.
+
+When an editor uploads an image:
+1. Upload it to the appropriate Supabase Storage bucket.
+2. Obtain its public URL.
+3. Save the URL in `articles.cover_image_url`.
+4. Display it in the article preview.
+5. Preserve the image when publishing.
+
+Keep external URL support as well. Do not force every editor to upload an image when a valid public image URL is available.
+
+### E. Image failure handling
+
+Implement:
+- A proper fallback image.
+- Clear validation messages in the editorial dashboard.
+- Image preview before submission.
+- Image availability checks before publication.
+- Graceful handling of failed image loading.
+- Appropriate aspect ratios and object-fit behaviour.
+- No broken image icons or blank image containers.
+
+Do not claim that every URL on the internet can be guaranteed to work. The requirement is to support any publicly accessible, valid image URL that the browser or secure image-fetching service can retrieve.
+
+### F. Existing article images
+
+Do not destroy or overwrite existing image URLs.
+
+Test the existing article:
+
+`the-disappearing-first-job`
+
+Article ID:
+
+`34975faf-ee73-4083-a731-42fff22aac57`
+
+Its existing image URL is:
+
+`https://media.istockphoto.com/id/1302759602/photo/senior-asian-manager-receiving-the-resume-document-from-young-asian-woman-graduate-before.jpg?s=612x612&w=0&k=20&c=Uv1nGjjaZ1njbY1jWjMOFVtulVPfMqrQLsF6VEBKC0E=`
+
+Identify why it fails and make the rendering system handle this failure correctly.
+
+Do not assume adding the iStock hostname alone solves the problem.
+
+---
+
+# PART 4 — FIX STUDENT SUBMISSIONS PAGE
+
+## Current problem
+
+When opening Student Submissions, the page fails with errors similar to:
+
+`Failed to load resource: the server responded with a status of 400 ()`
+
+`Error: An error occurred in the Server Components render. The specific message is omitted in production builds to avoid leaking sensitive details.`
+
+`Editorial Admin Console Error: An error occurred in the Server Components render.`
+
+The actual Supabase error is currently hidden by the production Server Components error boundary.
+
+## Required investigation
+
+Inspect the complete Student Submissions data flow:
+
+1. Student submission form.
+2. Submission API or server action.
+3. Supabase database insert.
+4. Submission table and relationships.
+5. RLS policies.
+6. Editorial Admin Console query.
+7. Server Component rendering.
+8. Submission detail and preview components.
+
+Identify the exact 400 error and its underlying Supabase error code/message.
+
+Check for:
+- Incorrect table or column names.
+- Invalid enum values.
+- Missing required fields.
+- Incorrect foreign-key relationships.
+- Invalid filters or joins.
+- Incorrect Supabase query syntax.
+- RLS SELECT permission failures.
+- Incorrect assumptions about null values.
+- Schema mismatch between the frontend and database.
+- Incorrect use of server-side Supabase authentication.
+
+Do not simply catch the error and return an empty array.
+
+Fix the actual query or permission issue.
+
+## Server-side error handling
+
+Implement useful, secure error handling.
+
+Requirements:
+- Log detailed errors server-side for debugging.
+- Return understandable error messages to authorized administrators.
+- Do not expose database credentials or sensitive user information.
+- Do not silently hide failed queries.
+- Do not display misleading empty states when the database query actually failed.
+- Provide a proper loading, empty and error state.
+
+---
+
+# PART 5 — REDESIGN STUDENT SUBMISSION ARTICLE PRESENTATION
+
+## Current problem
+
+Student-submitted articles do not look properly aligned or professionally formatted in the Student Submissions section.
+
+Their presentation is inconsistent with the regular published articles.
+
+## Required design
+
+Student-submitted articles should use the same design system as the regular articles.
+
+Use the existing article components wherever possible.
+
+Ensure consistent:
+- Typography.
+- Font sizes.
+- Heading hierarchy.
+- Paragraph spacing.
+- Line height.
+- Margins.
+- Content width.
+- Image dimensions.
+- Image captions.
+- Quotation formatting.
+- Callout formatting.
+- Bullet lists.
+- Metadata.
+- Responsive behaviour.
+
+The article should look like a professionally typeset editorial article, not a raw submission form or an unformatted database record.
+
+### Student submission card/list view
+
+Every submission card should have:
+- Article title.
+- Subtitle where available.
+- Short excerpt.
+- Author/student information.
+- Submission date.
+- Category.
+- Cover image when available.
+- Current workflow status.
+- An appropriate action to open and review the submission.
+
+### Student submission detail/preview
+
+When an Editorial Editor opens a student submission:
+- Display the article in the same reading layout as a normal article.
+- Clearly distinguish submission status from published status.
+- Display author and submission metadata.
+- Preserve the student's original content.
+- Allow authorized editors to review, request revisions and approve the submission.
+- Do not expose unpublished student submissions publicly.
+
+### Responsive behaviour
+
+Verify the layout on:
+- Desktop.
+- Tablet.
+- Mobile.
+
+Avoid:
+- Overflowing text.
+- Misaligned images.
+- Excessive empty spacing.
+- Inconsistent font sizes.
+- Broken content sections.
+- Empty quotation boxes.
+- Unnecessary borders and containers.
+
+---
+
+# PART 6 — DATABASE AND SECURITY REQUIREMENTS
+
+You have my permission to make all necessary database changes to implement the above functionality.
+
+However, follow these requirements strictly:
+
+1. Inspect the existing database schema before changing it.
+2. Inspect existing triggers, functions, enums and RLS policies.
+3. Reuse existing tables and fields wherever possible.
+4. Do not create duplicate tables or duplicate workflow functions unnecessarily.
+5. Do not disable RLS globally.
+6. Do not create unrestricted public write access.
+7. Do not expose Supabase service-role keys to the browser.
+8. Do not bypass authentication.
+9. Preserve editorial role permissions.
+10. Preserve student submission privacy.
+11. Preserve all existing article content and IDs.
+12. Preserve workflow audit records.
+13. Use proper migrations for schema and function changes.
+14. Ensure migrations are repeatable and safe.
+15. Use transactions where appropriate.
+16. Back up affected data or provide a rollback migration before destructive changes.
+17. Do not silently change existing role definitions.
+18. Do not modify unrelated features or data.
+
+If a database change is required, implement it properly rather than providing only SQL snippets for me to run manually, provided you have the necessary database access.
+
+---
+
+# PART 7 — TESTING AND ACCEPTANCE CRITERIA
+
+Do not declare this task complete merely because the code compiles.
+
+Perform actual testing.
+
+## Test A — Article formatting
+
+- Empty quote: nothing appears.
+- Populated quote: displays correctly.
+- Empty callout: nothing appears.
+- Populated callout: displays correctly.
+- Empty content sections: no blank containers.
+- Existing published articles: no formatting regression.
+
+## Test B — Editorial permissions
+
+- Editorial Editor can create a draft.
+- Editorial Editor can edit an eligible draft.
+- Editorial Editor can submit an article for review.
+- Editorial Editor can directly publish an eligible draft.
+- Published article gets the correct publisher ID and timestamp.
+- Audit history is recorded.
+- Editorial Editor cannot archive without authorization.
+- Writer cannot publish.
+- Writer cannot edit another writer's article.
+- Published articles are not silently overwritten during revisions.
+- The correct article ID is used throughout the workflow.
+
+## Test C — Images
+
+Test publicly accessible image URLs from multiple independent providers.
+
+Include:
+- Unsplash.
+- Pexels.
+- Wikimedia Commons.
+- A Google Drive public image link, where a valid direct image can be resolved.
+- Supabase Storage.
+- The existing iStock URL.
+
+Also test:
+- Invalid URL.
+- Expired URL.
+- Private/authenticated URL.
+- Non-image webpage URL.
+- Broken image URL.
+
+Expected result:
+- Valid accessible images display.
+- Invalid URLs show a clear fallback.
+- No broken layout.
+- No requirement to edit Next.js configuration for every new image host.
+
+## Test D — Student submissions
+
+- Student can submit an article.
+- Submission is stored correctly.
+- Student cannot access another student's private submission.
+- Editorial Editor can view authorized submissions.
+- Submission list loads without 400 errors.
+- Submission detail opens correctly.
+- Article formatting matches the normal article layout.
+- Editorial Editor can review and process submissions.
+- Published submissions appear correctly in the public article system.
+- Unpublished submissions remain private.
+
+## Test E — Regression
+
+Verify:
+- Homepage.
+- Category pages.
+- Article detail pages.
+- Article preview.
+- Editorial dashboard.
+- Student dashboard.
+- Student submissions.
+- Publishing workflow.
+- Authentication and role permissions.
+
+---
+
+# PART 8 — FINAL DELIVERY REPORT
+
+After implementing everything, provide a concise but complete report:
+
+1. Root cause of each of the four issues.
+2. Files modified.
+3. Database tables modified.
+4. Database functions and triggers modified.
+5. RLS policies changed, if any.
+6. Migrations created and applied.
+7. Image architecture implemented.
+8. Student submission query fixes.
+9. Publishing permission changes.
+10. Tests actually performed and their results.
+11. Any remaining limitations or actions requiring manual intervention.
+
+For each test, clearly distinguish:
+- Passed.
+- Failed.
+- Not tested.
+
+Do not claim a feature works unless you have verified it.
+
+## FINAL INSTRUCTION
+
+Work systematically, inspect before modifying, fix the underlying causes, and verify the complete workflow.
+
+The goal is a production-ready editorial platform where:
+
+- Articles look professionally formatted.
+- Empty content components never appear.
+- Editorial Editors can publish authorized articles directly.
+- Published content remains protected during revisions.
+- Image URLs are not restricted to a small list of domains.
+- Editors can upload permanent images to Supabase Storage.
+- Student submissions load correctly and look like professionally formatted articles.
+- Existing security, data and workflow history remain intact.
+
+**Do not stop after fixing only one issue. Complete all four areas and provide the final verification report.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-11-10T20:58:07+05:30.
+</ADDITIONAL_METADATA>

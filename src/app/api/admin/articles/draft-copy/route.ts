@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     if (action === "publish") {
       if (!permissions.canPublish(session.user.role)) {
         return NextResponse.json(
-          { error: "Permission Denied: Only Chief Editors and Administrators can publish working draft updates live." },
+          { error: "Permission Denied: Only Editorial Editors and Administrators can publish working draft updates live." },
           { status: 403 }
         );
       }

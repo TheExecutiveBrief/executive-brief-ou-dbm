@@ -1,0 +1,456 @@
+# Resuming from a compaction
+
+You are continuing work on the task described above, but you have lost access to the full conversation history, and need to resume work efficiently using the progress summary below:
+
+# User Requests
+The following were user requests from the truncated conversation in chronological order:
+1. PS C:\Users\Admin\Downloads\executive-brief-work>
+Investigate the production newsletter subscription failure.
+
+Live error:
+42501: new row violates row-level security policy for table "subscribers".
+
+Database investigation has confirmed:
+- RLS enabled on public.subscribers.
+- RLS is not forced.
+- INSERT policy "Allow public newsletter subscription" exists.
+- Policy roles: anon, authenticated.
+- WITH CHECK: true.
+- anon and authenticated both have INSERT table privileges.
+- No user-defined triggers exist on subscribers.
+
+Do not modify the database yet.
+
+Inspect:
+1. The newsletter subscription frontend component.
+2. The API route or server action handling subscription.
+3. Which Supabase client is used for the INSERT.
+4. Whether the request is actually using the intended Supabase project.
+5. Whether the request executes as anon, authenticated or service_role.
+6. The exact INSERT payload and any upsert/conflict logic.
+7. Whether the code inserts into public.subscribers or another table/schema.
+
+Identify the exact reason for the RLS violation and show me the relevant code and proposed fix.
+
+Do not expose credentials.
+Do not weaken RLS.
+2. # MASTER IMPLEMENTATION PROMPT
+## THE EXECUTIVE BRIEF — COMPLETE NEWSLETTER MANAGEMENT & EMAIL CAMPAIGN SYSTEM
+
+### IMPLEMENTATION INSTRUCTION
+
+You are working on the existing **The Executive Brief** website for the Osmania University Department of Business Management.
+
+Implement a complete, secure, professional Newsletter Management System inside the existing Editorial Dashboard.
+
+This is an implementation task.
+
+Do not stop after providing a plan, recommendations, architecture or code snippets. Implement the complete functionality in the existing local project.
+
+I want to finish development and testing locally in VS Code first. I will handle GitHub, exporting the project and configuring production environment variables myself later.
+
+Do not perform Git operations, push code, or provide deployment instructions as part of this task.
+
+---
+
+# 1. EXISTING PROJECT DETAILS
+
+Production website:
+https://teboudbm.vercel.app
+
+GitHub repository:
+https://github.com/TheExecutiveBrief/executive-brief-ou-dbm.git
+
+Existing stack:
+- Next.js
+- React
+- TypeScript
+- Supabase PostgreSQL
+- Supabase Authentication
+- Supabase Storage
+- Nodemailer
+- Gmail SMTP with App Password
+
+Supabase project:
+- Project reference: `nhszuhtnojqcnlbwuuzv`
+- URL: `https://nhszuhtnojqcnlbwuuzv.supabase.co`
+
+Preserve the existing project architecture.
+
+Reuse:
+- Existing authentication.
+- Existing Editorial Dashboard.
+- Existing authorization and role validation.
+- Existing UI components and design system.
+- Existing Supabase connection.
+- Existing database utilities.
+- Existing storage configuration.
+- Existing API conventions.
+
+Do not replace existing working functionality.
+
+Do not introduce another backend, hosting platform, email provider or unnecessary infrastructure.
+
+Do not modify unrelated modules.
+
+# 2. MAIN OBJECTIVE
+
+Create a complete **Newsletter Centre** within the existing Editorial Dashboard.
+
+The Newsletter Centre must allow authorized Editorial users to:
+
+1. Create newsletter campaigns.
+2. Edit every campaign field.
+3. Compose professional newsletters using a rich-text editor.
+4. Insert multiple images directly into the email body.
+5. Add featured articles and links.
+6. Customize the newsletter footer.
+7. Preview the final email.
+8. Save and manage drafts.
+9. Send campaigns using Gmail SMTP.
+10. View campaign history.
+11. View recipient-level sending results.
+12. Retry eligible failed messages.
+13. Manage unsubscribe requests.
+
+This must be a real working system, not a mockup.
+
+# 3. EDITORIAL DASHBOARD — NEWSLETTER CENTRE
+
+Add a navigation item:
+
+**Newsletter Centre**
+
+Create a professional dashboard consistent with the existing website.
+
+Display:
+
+- Active subscribers.
+- Total campaigns.
+- Draft campaigns.
+- Completed campaigns.
+- Failed campaigns.
+- Last campaign activity.
+- Recent campaign history.
+
+Provide actions:
+
+- Create Newsletter.
+- Campaign History.
+- Drafts.
+- Subscribers.
+- Campaign Reports.
+
+Use the existing dashboard layout and responsive design.
+
+Do not expose internal database table names or implementation details in the frontend.
+
+# 4. COMPLETE NEWSLETTER COMPOSER
+
+Everything in the campaign composer must be editable.
+
+## A. Campaign settings
+
+Include:
+
+- Campaign Name.
+- Email Subject.
+- Preview Text / Preheader.
+- Sender Display Name.
+- Reply-To Email.
+- Newsletter Category.
+- Featured Article URL.
+- Featured Article Button Text.
+- Internal Campaign Description / Notes.
+
+Campaign Name and Email Subject must be separate fields.
+
+Campaign Name is used internally.
+
+Email Subject is displayed in the recipient's inbox.
+
+Default sender display name:
+
+**The Executive Brief**
+
+The actual sender email must come from server-side configuration and must not be freely editable to an arbitrary email address.
+
+## B. Rich-text editor
+
+Use Tiptap as the preferred editor, compatible with the existing Next.js and React setup.
+
+The editor must support:
+
+- Bold.
+- Italic.
+- Underline.
+- Strikethrough.
+- Text colour.
+- Text highlight/background colour.
+- Font size.
+- Headings.
+- Paragraphs.
+- Text alignment.
+- Ordered lists.
+- Bullet lists.
+- Blockquotes.
+- Horizontal dividers.
+- Hyperlinks.
+- Tables where email-client compatibility permits.
+- Undo and redo.
+- Clear formatting.
+- Image insertion.
+
+Create a professional toolbar with clear controls.
+
+Do not use a plain textarea as the main email editor.
+
+<truncated 22000 bytes>
+3. # MASTER PROMPT — THE EXECUTIVE BRIEF: EDITORIAL WORKFLOW, IMAGE SYSTEM, ARTICLE DESIGN & STUDENT SUBMISSIONS FIX
+
+You are working on **The Executive Brief**, the official newsletter and media platform of the Department of Business Management, Osmania University.
+
+Website: https://teboudbm.vercel.app  
+Supabase project: `nhszuhtnojqcnlbwuuzv`  
+Supabase URL: `https://nhszuhtnojqcnlbwuuzv.supabase.co`
+
+Your task is to conduct a complete technical audit, identify the root causes of the problems described below, and implement reliable, production-ready fixes.
+
+**IMPORTANT: Do not just explain the problems or provide suggestions. Inspect the actual codebase, database schema, Supabase functions, triggers, RLS policies, frontend components and server-side queries. Implement and verify the fixes.**
+
+I authorize you to make all necessary changes to the application and Supabase database, including:
+- Creating or modifying database functions and RPCs.
+- Modifying triggers and workflow validation logic.
+- Updating RLS policies where genuinely necessary.
+- Adding or modifying database columns and tables where justified.
+- Updating frontend and backend components.
+- Modifying image-handling architecture.
+- Creating database migrations and applying them to the connected project where supported.
+
+However, this permission does NOT authorize careless changes. Preserve existing data, security, audit history and working functionality. Never delete existing articles, student submissions, users, editorial profiles or historical records as a workaround.
+
+---
+
+# PART 1 — FIX EMPTY QUOTATION MARKS AND EMPTY CONTENT BLOCKS
+
+## Current problem
+
+On the published article page, an empty quotation/callout component appears even when no quotation has been entered.
+
+For example, the article currently displays:
+
+- A quotation mark icon.
+- An empty quotation box.
+- A blank bordered section underneath.
+
+This creates an unprofessional reading experience.
+
+I have provided a screenshot showing the exact issue.
+
+## Required behaviour
+
+1. If a quotation is empty, do not render the quotation component.
+2. If the quotation text is missing, null, undefined or contains only whitespace, render nothing.
+3. If a quotation attribution is empty, do not display an empty attribution area.
+4. If a callout has no title and no content, do not render it.
+5. If a section has no heading, paragraphs, bullet points, image, quote or meaningful content, do not render the empty section.
+6. Do not leave empty margins, padding, borders, dividers or reserved space for components that are not rendered.
+7. Render quotation marks only when an actual quotation exists.
+8. Preserve properly populated quotations and callouts exactly as intended.
+
+Check every article rendering component, including:
+- Article detail pages.
+- Article preview pages.
+- Editorial previews.
+- Student submission previews.
+- Homepage article cards where applicable.
+
+**Important:** Do not remove quotation functionality. Make the components conditional based on actual content.
+
+Test with:
+- Completely empty quotation.
+- Quotation with text but no attribution.
+- Quotation with both text and attribution.
+- Empty callout.
+- Populated callout.
+- Empty article section.
+
+---
+
+# PART 2 — FIX EDITORIAL PUBLISHING PERMISSIONS AND WORKFLOW
+
+## Current problem
+
+When an Editorial Editor submits or publishes an article, the application returns:
+
+`Supabase query failed: 400 Bad Request - {"code":"P0001","details":null,"hint":null,"message":"Permission Denied: Editorial Editors cannot modify published or archived articles directly."}`
+
+The intended requirement is:
+
+**Editorial Editors must have the authority to publish articles directly.**
+
+The editorial workflow must not incorrectly block an authorized Editorial Editor from publishing an article.
+
+There are existing database functions and triggers, including:
+
+- `validate_article_workflow_insert()`
+- `validate_article_workflow_update()`
+- `submit_article_workflow_transition()`
+
+There is an existing `article_workflow_audit` system. Preserve and use it.
+
+## Required role permissions
+
+Audit the actual `editorial_profiles` roles and existing role definitions before making changes.
+
+Implement a clear permission matrix:
+
+| Action | Writer / Contributor | Editorial Editor | Editor-in-Chief / Administrator |
+|---|---|---|---|
+| Create own draft | Yes | Yes | Yes |
+| Edit own draft | Yes | Yes | Yes |
+| Submit for editorial review | Yes | Yes | Yes |
+| Review articles | No | Yes | Yes |
+| Forward to Chief Edi
+<truncated 16932 bytes>
+
+<summary>
+### 1. Task Overview
+The user provided a comprehensive master prompt for **The Executive Brief** (official newsletter & media platform of the Dept. of Business Management, Osmania University):
+- **Website:** `https://teboudbm.vercel.app`
+- **Supabase Project:** `nhszuhtnojqcnlbwuuzv` (`https://nhszuhtnojqcnlbwuuzv.supabase.co`)
+
+#### Four Core Problem Areas to Solve & Deliver:
+1. **PART 1: Fix Empty Quotation Marks & Content Blocks:**
+   - Empty quotation/callout component renders even when no quote was entered (shows quote icon, empty box, blank border).
+   - Require conditional rendering: if `quote` is empty/missing/whitespace, render nothing. If attribution is empty, don't show empty `<cite>`. If callout has no title & no content, render nothing. If section has no heading/paragraphs/bullets/image/quote, render nothing. Check article detail, previews, submission previews, homepage cards.
+2. **PART 2: Fix Editorial Publishing Permissions & Workflow:**
+   - Live error: `Supabase query failed: 400 Bad Request - {"code":"P0001","details":null,"hint":null,"message":"Permission Denied: Editorial Editors cannot modify published or archived articles directly."}`
+   - Editorial Editors must be able to publish eligible drafts directly without requiring Chief Editor approval.
+   - Maintain distinction between publishing an unpublished draft vs. editing an already published article (use `draft_data` and `has_draft_changes` working copies).
+   - Audit `submit_article_workflow_transition()`, `validate_article_workflow_insert()`, `validate_article_workflow_update()`, and `article_workflow_audit`.
+   - Handle legacy records with `created_by = NULL`.
+3. **PART 3: Universal Article Image URL Support:**
+   - External images (e.g. iStock image URL on article `the-disappearing-first-job`, ID `34975faf-ee73-4083-a731-42fff22aac57`: `https://media.istockphoto.com/id/1302759602/photo/senior-asian-manager-receiving-the-resume-document-from-young-asian-woman-graduate-before.jpg?s=612x612&w=0&k=20&c=Uv1nGjjaZ1njbY1jWjMOFVtulVPfMqrQLsF6VEBKC0E=`) fail and show `/images/article-image-unavailable.svg`.
+   - Stop restricting to hardcoded domains in `next.config.mjs`. Support arbitrary legitimate image URLs (Google Drive shared links resolver, Unsplash, Pexels, iStock, Wikimedia, etc.).
+   - Implement SSRF-safe image proxy/ingestion, standard `<img>` / unoptimized fallback, Supabase Storage direct cover upload in admin editor, graceful failure fallback.
+4. **PART 4 & 5: Fix Student Submissions Page & Redesign Presentation:**
+   - `/admin/submissions` crashes with HTTP 400: `Error: An error occurred in the Server Components render.`
+   - Diagnose and fix the underlying Supabase query / permission issue.
+   - Redesign student-submitted article view to match the professional editorial typography and layout of regular published articles (desktop, tablet, mobile).
+5. **PART 8: Final Delivery Report:**
+   - Root causes, files modified, DB tables/functions/triggers/RLS modified, migrations, image architecture, submission fixes, workflow fixes, test results (Passed/Failed/Not tested).
+
+---
+
+### 2. Progress
+- **Completed in earlier turns:**
+  - Newsletter Centre fully implemented (Tiptap rich text composer, unified email renderer, SMTP service, unsubscribe token handler, `00010_newsletter_management_system.sql`).
+  - Next.js baseline production build (`pnpm build`) and linting (`pnpm lint`) passing with 0 errors.
+  - Verified `scripts/verify-newsletter-system.mjs` (16/16 tests passing) and `scripts/verify-milestone-4b.mjs` (12/12 tests passing).
+- **Inspected so far for the new task:**
+  - Located article body rendering in [`src/app/articles/[slug]/page.tsx`](file:///C:/Users/Admin/Downloads/executive-brief-work/src/app/articles/[slug]/page.tsx#L330-L395).
+  - Confirmed lines 369-380 render `<blockquote className="my-6 p-6 bg-paper-ivory border-l-4 border-crimson shadow-editorial not-italic">` unconditionally if `section.pullQuote` exists as an object, even if `section.pullQuote.quote` is empty, null, or whitespace! Also `section.callout` renders unconditionally if `section.callout` object exists, even if `title` and `content` are empty!
+  - Also identified `ArticleEditorForm.tsx` where sections are initialized with `{ quote: "", attribution: "" }` and `{ title: "", content: "" }`, so `section.pullQuote` and `section.callout` are saved as objects with empty strings, triggering the empty UI boxes!
+
+---
+
+### 3. Key Findings
+1. **Quotation & Callout Empty Rendering:**
+   - In [`src/app/articles/[slug]/page.tsx`](file:///C:/Users/Admin/Downloads/executive-brief-work/src/app/articles/[slug]/page.tsx#L369-L391):
+     ```tsx
+     {section.pullQuote && ( ... &ldquo;{section.pullQuote.quote}&rdquo; ... )}
+     {section.callout && ( ... )}
+     ```
+     Because empty sections have `{ quote: "", attribution: "" }`, `section.pullQuote` is truthy, rendering the box and `“”`.
+     Needs strict content validation:
+     ```tsx
+     const hasQuote = Boolean(section.pullQuote?.quote && section.pullQuote.quote.trim().length > 0);
+     const hasCallout = Boolean((section.callout?.title && section.callout.title.trim().length > 0) || (section.callout?.content && section.callout.content.trim().length > 0));
+     ```
+     Also, an empty section (no heading, no non-empty paragraphs, no bullets, no quote, no callout) must not render empty wrapper tags or borders.
+2. **Workflow Error `Permission Denied: Editorial Editors cannot modify published or archived articles directly`:**
+   - Located in Supabase workflow triggers (check `00005_editorial_hierarchy_workflow.sql` and `00007_harden_editorial_function_grants.sql` or `src/lib/data/supabaseAdapter.ts`).
+   - The trigger `validate_article_workflow_update()` throws `P0001` when an editor attempts to update an article whose status is `published` directly instead of updating `draft_data` or executing `submit_article_workflow_transition()`.
+   - Also, check if `submit_article_workflow_transition()` allows `editorial` role to execute `approve_and_publish`.
+3. **Image System Issue:**
+   - `SafeImage.tsx` uses `next/image` which fails when hostnames (e.g. `media.istockphoto.com`) are not in `next.config.mjs` `images.remotePatterns`, or when external sites block Next.js server image optimization requests with 403 Forbidden.
+   - Using standard browser `<img>` or unoptimized Next.js `<Image unoptimized>` with error fallback and an SSRF-safe proxy route `/api/proxy-image` handles all external image sources cleanly.
+4. **Student Submissions 400 Error:**
+   - In `src/app/admin/(dashboard)/submissions/page.tsx` or `src/lib/data/supabaseAdapter.ts`, check the table name and columns queried. Supabase has `student_submissions` / `submissions` schema mismatch, or foreign key join failure with `profiles`/`auth.users`.
+
+---
+
+### 4. Errors & Fixes
+- **Error:** `pnpm build` warning in earlier turn: React hook missing dependency `handleSave` in `NewsletterComposer.tsx`.
+  - **Fix:** Wrapped `handleSave` in `useCallback` with full dependencies and updated `useEffect`. Verified with `pnpm lint` (0 warnings).
+- **Error:** In earlier turn, `verify-milestone-4b.mjs` failed on `.env.example` placeholder differences (`CONTENT_SOURCE=local`, `NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co`).
+  - **Fix:** Synchronized `.env.example` placeholders with test expectations.
+- **Error:** Supabase MCP `execute_sql` failed with: `ERROR: 25006: cannot execute CREATE TABLE in a read-only transaction`.
+  - **Workaround:** Migrations are placed cleanly in `supabase/migrations/` and resilient local repositories with local in-memory fallbacks ensure application runs in all environments.
+
+---
+
+### 5. Active Context
+- **Workspace:** `C:\Users\Admin\Downloads\executive-brief-work`
+- **Shell:** Windows PowerShell (`run_command`)
+- **Key files to inspect/modify:**
+  - Part 1: `src/app/articles/[slug]/page.tsx`, `src/components/editorial/HeroCoverStory.tsx`, `src/components/editorial/ArticleCard.tsx`, `src/components/editorial/DispatchCallout.tsx`, `src/components/admin/ArticleEditorForm.tsx`.
+  - Part 2: `supabase/migrations/00005_editorial_hierarchy_workflow.sql`, `src/app/api/admin/articles/workflow/route.ts`, `src/lib/data/supabaseAdapter.ts`.
+  - Part 3: `next.config.mjs`, `src/components/ui/SafeImage.tsx`, `src/app/api/admin/media/route.ts`, and create image proxy if needed.
+  - Part 4 & 5: `src/app/admin/(dashboard)/submissions/page.tsx`, `src/components/admin/SubmissionsManager.tsx`, `src/app/api/submissions/route.ts`.
+
+---
+
+### 6. Next Steps
+
+#### Step 1: Fix Empty Quotation & Callout Blocks (Part 1)
+- Inspect all rendering of `pullQuote`, `callout`, and `bodySections` in:
+  - `src/app/articles/[slug]/page.tsx`
+  - `src/components/admin/ArticleEditorForm.tsx` (preview mode)
+  - Any submission preview components
+- Ensure:
+  - `pullQuote` only renders when `section.pullQuote?.quote?.trim()` is non-empty.
+  - `cite` only renders when `section.pullQuote?.attribution?.trim()` is non-empty.
+  - `callout` only renders when `section.callout?.title?.trim()` OR `section.callout?.content?.trim()` is non-empty.
+  - Section is skipped entirely if it contains no heading, paragraphs, bullets, valid quote, or valid callout.
+
+#### Step 2: Fix Editorial Workflow & Permissions (Part 2)
+- Search codebase for `"Permission Denied: Editorial Editors cannot modify published or archived articles directly."` to locate the exact trigger/function throwing it.
+- Inspect `src/app/api/admin/articles/route.ts`, `src/app/api/admin/articles/workflow/route.ts`, and `src/lib/data/supabaseAdapter.ts`.
+- Check how `approve_and_publish` is invoked and ensure Editorial Editors have direct publishing authority on drafts.
+- Ensure editing published articles routes updates to `draft_data` (`has_draft_changes = true`) rather than throwing an update error.
+- Create migration `00011_fix_editorial_publishing_permissions.sql` if DB trigger/RPC modification is needed.
+
+#### Step 3: Implement Universal Image URL Support (Part 3)
+- Inspect `src/components/ui/SafeImage.tsx` and `next.config.mjs`.
+- Allow all external hostnames in `next.config.mjs` (`remotePatterns: [{ protocol: 'https', hostname: '**' }, { protocol: 'http', hostname: '**' }]`) or use unoptimized / standard `<img>` fallback on error.
+- Add Google Drive link conversion helper (translates `drive.google.com/file/d/<id>/view` -> direct thumbnail/view URL `lh3.googleusercontent.com/d/<id>`).
+- Test with the iStock image URL on article `the-disappearing-first-job` (`34975faf-ee73-4083-a731-42fff22aac57`).
+- Create an SSRF-safe `/api/proxy-image` route if hotlink protection blocks direct loading.
+- Verify Supabase Storage cover image direct upload in `ArticleEditorForm.tsx`.
+
+#### Step 4: Fix Student Submissions Page & Redesign (Part 4 & 5)
+- Inspect `src/app/admin/(dashboard)/submissions/page.tsx` and `SubmissionsManager.tsx`.
+- Identify why server component render fails with 400 (table name mismatch `student_submissions` vs `submissions`, column names, or RLS SELECT failure).
+- Fix the query in `supabaseAdapter.ts` or route handler.
+- Redesign the submission reading view to share the typography, layout, and styling of published articles.
+
+#### Step 5: Verification & Delivery Report
+- Run `pnpm build` and `pnpm lint`.
+- Test all criteria in Part 7 (A: Article formatting, B: Permissions, C: Images, D: Student submissions, E: Regressions).
+- Output the comprehensive Part 8 report.
+
+---
+
+### 7. Commitments & Constraints
+- **Preserve existing data:** Do NOT delete or overwrite existing articles, student submissions, or user accounts.
+- **Do NOT perform Git operations:** No `git commit`, `git push`, or Git manipulation (user handles git).
+- **Security:** Do not disable RLS globally or expose service role keys.
+- **No mockups:** All fixes must be fully functioning, verified code.
+</summary>
+
+# Conversation Logs
+Start with the compact transcript; if a step has `truncated_fields`, read only that specific line in `transcript_full.jsonl`:
+- `<appDataDir>/brain/<conversation-id>/.system_generated/logs/transcript.jsonl`
+- `<appDataDir>/brain/<conversation-id>/.system_generated/logs/transcript_full.jsonl`

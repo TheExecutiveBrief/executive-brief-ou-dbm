@@ -112,6 +112,9 @@ export const permissions = {
   canPublish: (role?: EditorialRole): boolean =>
     permissions.isEditorial(role),
 
+  canArchive: (role?: EditorialRole): boolean =>
+    role === "admin" || role === "administrator" || role === "editor_in_chief",
+
   canEditAnyArticle: (role?: EditorialRole): boolean =>
     permissions.isEditorial(role),
 

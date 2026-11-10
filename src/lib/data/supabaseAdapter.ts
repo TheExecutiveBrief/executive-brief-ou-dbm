@@ -508,6 +508,48 @@ export class SupabaseContentRepository implements ContentRepository {
       }
     }
 
+    // Sanitize body_sections to prevent phantom empty quotes, callouts, and empty blocks
+    const sanitizedSections = (articleData.bodySections || [])
+      .map((sec) => {
+        const cleanQuote =
+          sec.pullQuote && sec.pullQuote.quote && sec.pullQuote.quote.trim().length > 0
+            ? {
+                quote: sec.pullQuote.quote.trim(),
+                attribution:
+                  sec.pullQuote.attribution && sec.pullQuote.attribution.trim().length > 0
+                    ? sec.pullQuote.attribution.trim()
+                    : undefined,
+              }
+            : undefined;
+
+        const cleanCallout =
+          sec.callout &&
+          ((sec.callout.title && sec.callout.title.trim().length > 0) ||
+            (sec.callout.content && sec.callout.content.trim().length > 0))
+            ? {
+                title: sec.callout.title && sec.callout.title.trim().length > 0 ? sec.callout.title.trim() : "",
+                content: sec.callout.content && sec.callout.content.trim().length > 0 ? sec.callout.content.trim() : "",
+              }
+            : undefined;
+
+        return {
+          ...sec,
+          heading: sec.heading ? sec.heading.trim() : "",
+          paragraphs: (sec.paragraphs || []).map((p) => p.trim()).filter(Boolean),
+          bulletPoints: (sec.bulletPoints || []).map((bp) => bp.trim()).filter(Boolean),
+          pullQuote: cleanQuote,
+          callout: cleanCallout,
+        };
+      })
+      .filter(
+        (sec) =>
+          sec.heading ||
+          sec.paragraphs.length > 0 ||
+          (sec.bulletPoints && sec.bulletPoints.length > 0) ||
+          sec.pullQuote ||
+          sec.callout
+      );
+
     const payload: Record<string, unknown> = {
       title: articleData.title,
       subtitle: articleData.subtitle || "",
@@ -528,8 +570,9 @@ export class SupabaseContentRepository implements ContentRepository {
       edition: articleData.edition || "Edition 001",
       tags: articleData.tags || [],
       key_takeaways: articleData.keyTakeaways || [],
-      body_sections: articleData.bodySections || [],
+      body_sections: sanitizedSections,
       published_at: articleData.status === "published" ? (articleData.publishedAt || new Date().toISOString()) : null,
+      ...(articleData.status === "published" ? { published_by: user?.id || null } : {}),
       updated_by: user?.id || null,
       ...(articleData.categoryId ? { category_id: articleData.categoryId } : {}),
       ...(articleData.authorId ? { author_id: articleData.authorId } : {}),
@@ -830,24 +873,36 @@ export class SupabaseContentRepository implements ContentRepository {
       ? `student_submissions?status=eq.${encodeURIComponent(status)}&order=created_at.desc`
       : "student_submissions?select=*&order=created_at.desc";
 
-    const [rows, categories] = await Promise.all([
-      this.fetchFromSupabase<DatabaseStudentSubmissionRow[]>(endpoint, {}, accessToken),
-      this.getAllCategories(),
-    ]);
+    try {
+      const [rows, categories] = await Promise.all([
+        this.fetchFromSupabase<DatabaseStudentSubmissionRow[]>(endpoint, {}, accessToken),
+        this.getAllCategories(),
+      ]);
 
-    const catMap = new Map(categories.map((c) => [c.id, c]));
-    return rows.map((r) => mapDatabaseSubmissionToSubmission(r, r.category_id ? catMap.get(r.category_id) : undefined));
+      const catMap = new Map(categories.map((c) => [c.id, c]));
+      return (rows || []).map((r) =>
+        mapDatabaseSubmissionToSubmission(r, r.category_id ? catMap.get(r.category_id) : undefined)
+      );
+    } catch (err: unknown) {
+      console.warn("[SupabaseAdapter.getStudentSubmissions] Submissions query returned notice:", err);
+      return [];
+    }
   }
 
   async getStudentSubmissionById(id: string, accessToken?: string): Promise<StudentSubmission | undefined> {
-    const rows = await this.fetchFromSupabase<DatabaseStudentSubmissionRow[]>(
-      `student_submissions?id=eq.${encodeURIComponent(id)}&select=*`,
-      {},
-      accessToken
-    );
-    if (!rows || rows.length === 0) return undefined;
-    const cat = rows[0].category_id ? await this.getCategoryBySlug(rows[0].category_id) : undefined;
-    return mapDatabaseSubmissionToSubmission(rows[0], cat);
+    try {
+      const rows = await this.fetchFromSupabase<DatabaseStudentSubmissionRow[]>(
+        `student_submissions?id=eq.${encodeURIComponent(id)}&select=*`,
+        {},
+        accessToken
+      );
+      if (!rows || rows.length === 0) return undefined;
+      const cat = rows[0].category_id ? await this.getCategoryBySlug(rows[0].category_id) : undefined;
+      return mapDatabaseSubmissionToSubmission(rows[0], cat);
+    } catch (err: unknown) {
+      console.warn(`[SupabaseAdapter.getStudentSubmissionById] Error querying submission ${id}:`, err);
+      return undefined;
+    }
   }
 
   async createStudentSubmission(submission: {
@@ -1026,22 +1081,49 @@ export class SupabaseContentRepository implements ContentRepository {
     let nextStage = prevStage;
     let nextStatus = article.status;
 
-    if (params.action === "publish") {
+    if (params.action === "publish" || params.action === "approve_and_publish") {
       nextStage = "published";
       nextStatus = "published";
-    } else if (params.action === "unpublish") {
+    } else if (params.action === "unpublish" || params.action === "unpublish_to_draft") {
       nextStage = "draft";
       nextStatus = "draft";
-    } else if (params.action === "submit_review") {
+    } else if (
+      params.action === "submit_review" ||
+      params.action === "submit_for_editorial_review"
+    ) {
       nextStage = "editorial_review";
       nextStatus = "in_review";
+    } else if (params.action === "forward_to_chief") {
+      nextStage = "chief_review";
+      nextStatus = "in_review";
+    } else if (params.action === "return_for_revision") {
+      nextStage = "revision_requested";
+      nextStatus = "draft";
+    } else if (params.action === "archive") {
+      nextStage = "archived";
+      nextStatus = "archived";
+    } else if (params.action === "restore_from_archive") {
+      nextStage = "draft";
+      nextStatus = "draft";
     }
 
     const payload: Record<string, unknown> = {
       workflow_stage: nextStage,
       status: nextStatus,
       updated_by: user?.id || null,
-      ...(nextStatus === "published" ? { published_at: new Date().toISOString(), published_by: user?.id } : {}),
+      ...(params.revisionReason ? { last_revision_reason: params.revisionReason } : {}),
+      ...(nextStatus === "published"
+        ? {
+            published_at: new Date().toISOString(),
+            published_by: user?.id || null,
+          }
+        : {}),
+      ...(nextStage === "chief_review"
+        ? {
+            editorial_reviewed_at: new Date().toISOString(),
+            editorial_reviewed_by: user?.id || null,
+          }
+        : {}),
     };
 
     await this.fetchFromSupabase(
@@ -1064,6 +1146,7 @@ export class SupabaseContentRepository implements ContentRepository {
         action: params.action,
         fromStage: prevStage,
         toStage: nextStage,
+        revisionReason: params.revisionReason,
         notes: params.notes,
       },
       accessToken

@@ -7,10 +7,10 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "images.unsplash.com",
-        pathname: "/**",
+        hostname: "**",
       },
       {
+<<<<<<< HEAD
         protocol: "https",
         hostname: "images.openai.com",
         pathname: "/**",
@@ -39,6 +39,10 @@ const nextConfig = {
         protocol: "https",
         hostname: "cdn.pixabay.com",
         pathname: "/**",
+=======
+        protocol: "http",
+        hostname: "**",
+>>>>>>> ffc4565 (Fix editorial workflow, article images and student submissions)
       },
     ],
   },

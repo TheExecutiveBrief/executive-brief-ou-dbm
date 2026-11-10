@@ -117,12 +117,26 @@ export async function POST(request: Request) {
           );
         }
 
+        // Archiving guard: Only Chief Editors and Administrators can archive articles
+        if (body.status === "archived" && !permissions.canArchive(session.user.role)) {
+          return NextResponse.json(
+            { error: "Permission Denied: Only Chief Editors and Administrators can archive articles." },
+            { status: 403 }
+          );
+        }
+
+        // Live article protection: Direct updates to already published articles should use the draft working copy
+        // system to prevent partial or unreviewed live edits from appearing to readers.
         if (
-          session.user.role === "section_editor" &&
-          (existing.status === "published" || existing.status === "archived")
+          existing.status === "published" &&
+          body.status === "published" &&
+          !permissions.isAdministrator(session.user.role)
         ) {
           return NextResponse.json(
-            { error: "Permission Denied: Editorial Editors cannot modify published or archived articles." },
+            {
+              error:
+                "Protected Live Article: Published articles cannot be modified directly. Please save revisions to the draft working copy.",
+            },
             { status: 403 }
           );
         }
