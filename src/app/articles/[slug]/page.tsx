@@ -414,24 +414,26 @@ export default async function ArticleDetailPage({ params }: PageProps) {
             }
 
             // Standard Editorial Rendering for Articles without multi-sections
-            <div className="space-y-6">
-              <p className="editorial-dropcap text-ink-800">
-                {article.excerpt}
-              </p>
+            return (
+              <div className="space-y-6">
+                <p className="editorial-dropcap text-ink-800">
+                  {article.excerpt}
+                </p>
 
-              {/* Sample Content Transparency Notice */}
-              <div className="my-8 p-5 bg-paper-100 border border-editorial-border flex items-start gap-3">
-                <Info className="w-5 h-5 text-crimson shrink-0 mt-0.5" />
-                <div className="text-xs font-sans text-ink-700 leading-relaxed">
-                  <strong className="font-mono uppercase text-ink-900 block mb-1">
-                    Editorial Notice
-                  </strong>
-                  This briefing is published as part of the official editorial catalog for{" "}
-                  <em>The Executive Brief by OU DBM</em>. The full unabridged investigative dossier and quantitative models are catalogued within the Department of Business Management journal repository.
+                {/* Sample Content Transparency Notice */}
+                <div className="my-8 p-5 bg-paper-100 border border-editorial-border flex items-start gap-3">
+                  <Info className="w-5 h-5 text-crimson shrink-0 mt-0.5" />
+                  <div className="text-xs font-sans text-ink-700 leading-relaxed">
+                    <strong className="font-mono uppercase text-ink-900 block mb-1">
+                      Editorial Notice
+                    </strong>
+                    This briefing is published as part of the official editorial catalog for{" "}
+                    <em>The Executive Brief by OU DBM</em>. The full unabridged investigative dossier and quantitative models are catalogued within the Department of Business Management journal repository.
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Article Tags */}

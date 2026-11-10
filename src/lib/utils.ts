@@ -54,7 +54,7 @@ export function getCurrentDateFormatted(): string {
 /**
  * Checks whether a string contains meaningful non-whitespace text.
  */
-export function hasMeaningfulText(value?: string | null): boolean {
+export function hasMeaningfulText(value?: string | null): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 

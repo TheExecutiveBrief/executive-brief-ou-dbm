@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import SafeImage from "@/components/ui/SafeImage";
 import {
   Article,
   ArticleSection,
@@ -1613,26 +1614,69 @@ export default function ArticleEditorForm({
             </h3>
 
             <div>
-              <label className="block text-xs font-mono font-medium uppercase tracking-wider text-ink-700">
-                Cover Image URL
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-mono font-medium uppercase tracking-wider text-ink-700">
+                  Cover Image URL
+                </label>
+                <button
+                  type="button"
+                  onClick={() => coverFileInputRef.current?.click()}
+                  disabled={isUploadingCover}
+                  className="inline-flex items-center gap-1 text-[11px] font-mono text-crimson hover:text-crimson-800 font-semibold transition-colors disabled:opacity-50"
+                  title="Upload direct image file to Supabase Storage"
+                >
+                  <Upload className="w-3 h-3" />
+                  <span>{isUploadingCover ? "Uploading..." : "Upload to Storage"}</span>
+                </button>
+              </div>
+
+              <input
+                ref={coverFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleCoverFileUpload}
+                className="hidden"
+              />
+
               <input
                 type="url"
                 value={coverImage}
-                onChange={(e) => setCoverImage(e.target.value)}
-                placeholder="https://images.unsplash.com/photo-..."
+                onChange={(e) => handleCoverUrlChange(e.target.value)}
+                placeholder="Paste public image link (Google Drive, iStock, Unsplash, Supabase...)"
                 className="mt-1 block w-full px-3 py-1.5 border border-editorial-border rounded bg-paper-50 text-xs font-mono text-ink-800 focus:outline-none focus:ring-1 focus:ring-crimson"
               />
+
+              {coverUploadNotice && (
+                <div className="mt-1.5 text-[11px] font-mono text-forest bg-forest-light px-2 py-1 rounded flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>{coverUploadNotice}</span>
+                </div>
+              )}
             </div>
 
             {coverImage && (
-              <div className="mt-2 rounded overflow-hidden border border-editorial-border aspect-video bg-paper-200">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={coverImage}
-                  alt="Cover preview"
-                  className="w-full h-full object-cover"
-                />
+              <div className="mt-2 space-y-1">
+                <div className="relative rounded overflow-hidden border border-editorial-border aspect-video bg-paper-200">
+                  <SafeImage
+                    src={coverImage}
+                    alt="Cover preview"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 400px"
+                    className="object-cover"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-mono text-ink-500">
+                  <span className="truncate max-w-[280px]">{coverImage}</span>
+                  <a
+                    href={coverImage}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-crimson flex items-center gap-0.5 ml-1 shrink-0"
+                  >
+                    <ExternalLink className="w-2.5 h-2.5" />
+                    <span>Open</span>
+                  </a>
+                </div>
               </div>
             )}
 
@@ -1975,14 +2019,15 @@ export default function ArticleEditorForm({
               {/* Cover Image */}
               {coverImage && (
                 <div className="relative w-full h-64 sm:h-80 bg-paper-200 border border-editorial-border overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <SafeImage
                     src={coverImage}
                     alt={title}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 800px"
+                    className="object-cover"
                   />
                   {imageCaption && (
-                    <div className="absolute bottom-0 inset-x-0 bg-ink-950/80 text-paper-50 p-2 text-xs font-mono italic">
+                    <div className="absolute bottom-0 inset-x-0 bg-ink-950/80 text-paper-50 p-2 text-xs font-mono italic z-10">
                       {imageCaption}
                     </div>
                   )}
@@ -2015,36 +2060,56 @@ export default function ArticleEditorForm({
 
               {/* Body Sections */}
               <div className="space-y-6 pt-4 border-t border-editorial-border">
-                {bodySections.map((sec, idx) => (
-                  <div key={sec.id || idx} className="space-y-3">
-                    <h3 className="font-serif text-xl font-bold text-ink-950 pb-1 border-b border-editorial-border/60">
-                      {sec.heading}
-                    </h3>
-                    {sec.paragraphs.map((p, pIdx) => (
-                      <p key={pIdx} className="font-editorial text-ink-800 text-base leading-relaxed">
-                        {p}
-                      </p>
-                    ))}
-                    {sec.pullQuote && sec.pullQuote.quote && (
-                      <blockquote className="my-4 border-l-4 border-crimson pl-4 italic text-ink-900 font-editorial text-lg">
-                        &ldquo;{sec.pullQuote.quote}&rdquo;
-                        {sec.pullQuote.attribution && (
-                          <footer className="text-xs font-mono text-ink-500 mt-1 not-italic">
-                            — {sec.pullQuote.attribution}
-                          </footer>
-                        )}
-                      </blockquote>
-                    )}
-                    {sec.callout && sec.callout.title && (
-                      <div className="p-4 bg-paper-100 border border-editorial-border my-3">
-                        <div className="font-serif font-bold text-sm text-ink-950 mb-1">
-                          {sec.callout.title}
+                {bodySections.filter(isMeaningfulSection).map((sec, idx) => {
+                  const validParagraphs = (sec.paragraphs || []).filter(hasMeaningfulText);
+                  const validBullets = (sec.bulletPoints || []).filter(hasMeaningfulText);
+                  const showQuote = hasValidPullQuote(sec.pullQuote);
+                  const showCallout = hasValidCallout(sec.callout);
+
+                  return (
+                    <div key={sec.id || idx} className="space-y-3">
+                      {hasMeaningfulText(sec.heading) && (
+                        <h3 className="font-serif text-xl font-bold text-ink-950 pb-1 border-b border-editorial-border/60">
+                          {sec.heading.trim()}
+                        </h3>
+                      )}
+                      {validParagraphs.map((p, pIdx) => (
+                        <p key={pIdx} className="font-editorial text-ink-800 text-base leading-relaxed">
+                          {p.trim()}
+                        </p>
+                      ))}
+                      {validBullets.length > 0 && (
+                        <ul className="space-y-1 text-xs sm:text-sm font-sans text-ink-700 list-disc pl-5">
+                          {validBullets.map((bp, bpIdx) => (
+                            <li key={bpIdx}>{bp.trim()}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {showQuote && (
+                        <blockquote className="my-4 border-l-4 border-crimson pl-4 italic text-ink-900 font-editorial text-lg">
+                          &ldquo;{sec.pullQuote!.quote!.trim()}&rdquo;
+                          {hasMeaningfulText(sec.pullQuote?.attribution) && (
+                            <footer className="text-xs font-mono text-ink-500 mt-1 not-italic">
+                              — {sec.pullQuote!.attribution!.trim()}
+                            </footer>
+                          )}
+                        </blockquote>
+                      )}
+                      {showCallout && (
+                        <div className="p-4 bg-paper-100 border border-editorial-border my-3">
+                          {hasMeaningfulText(sec.callout?.title) && (
+                            <div className="font-serif font-bold text-sm text-ink-950 mb-1">
+                              {sec.callout!.title!.trim()}
+                            </div>
+                          )}
+                          {hasMeaningfulText(sec.callout?.content) && (
+                            <p className="font-sans text-xs text-ink-700">{sec.callout!.content!.trim()}</p>
+                          )}
                         </div>
-                        <p className="font-sans text-xs text-ink-700">{sec.callout.content}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Tags */}
