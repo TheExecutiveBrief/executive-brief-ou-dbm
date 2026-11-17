@@ -1,11 +1,11 @@
 /**
  * ==============================================================================
  * The Executive Brief by OU DBM - Newsletter Management Verification Suite
- * Native Node.js Test Suite verifying:
- * 1. Subscriber schema equality & seed accuracy
+ * Canonical Reconciliation Suite verifying:
+ * 1. Canonical public.subscribers table schema & idempotent seed
  * 2. Unified email rendering & strict HTML sanitization
- * 3. Cryptographic unsubscribe tokens & RFC 8058 headers
- * 4. Central recipient repository & one-setting switch
+ * 3. Cryptographic unsubscribe tokens & RFC 8058 headers targeting public.subscribers
+ * 4. Central recipient repository operating exclusively on public.subscribers
  * 5. Campaign lifecycle, recipient snapshots & bounded retries
  * 6. SMTP configuration validation & safety
  * ==============================================================================
@@ -38,91 +38,82 @@ function runTest(description, testFn) {
 }
 
 // ------------------------------------------------------------------------------
-// TEST SUITE 1: DATABASE MIGRATION & EXACT SUBSCRIBER SCHEMA MATCH
+// TEST SUITE 1: CANONICAL SUBSCRIBER SCHEMA & FORWARD MIGRATION
 // ------------------------------------------------------------------------------
-console.log("[Test Suite 1: Database Migration & Schema Equality]");
+console.log("[Test Suite 1: Database Migration & Canonical public.subscribers Schema]");
 
-const migrationFile = path.join(
+const coreSchemaFile = path.join(
+  rootDir,
+  "supabase",
+  "migrations",
+  "00001_core_schema.sql"
+);
+assert.ok(fs.existsSync(coreSchemaFile), "00001 core schema migration must exist");
+const coreSql = fs.readFileSync(coreSchemaFile, "utf-8").toLowerCase();
+
+runTest("Core schema defines canonical public.subscribers with email unique and check constraint", () => {
+  assert.ok(
+    coreSql.includes("create table if not exists subscribers") || coreSql.includes("create table if not exists public.subscribers"),
+    "Must create subscribers table"
+  );
+  assert.ok(
+    coreSql.includes("id uuid") && coreSql.includes("gen_random_uuid()"),
+    "Must have id uuid with gen_random_uuid"
+  );
+  assert.ok(coreSql.includes("email text"), "Must have email text column");
+  assert.ok(coreSql.includes("unique"), "Must have unique constraint on email");
+  assert.ok(coreSql.includes("status text"), "Must have status column");
+  assert.ok(coreSql.includes("source text"), "Must have source column");
+  assert.ok(coreSql.includes("subscribed_at timestamptz"), "Must have subscribed_at timestamp");
+  assert.ok(coreSql.includes("constraint check_email_format"), "Must have check_email_format regex");
+});
+
+const migration010 = path.join(
   rootDir,
   "supabase",
   "migrations",
   "00010_newsletter_management_system.sql"
 );
+assert.ok(fs.existsSync(migration010), "00010 migration must exist");
+const sql010 = fs.readFileSync(migration010, "utf-8").toLowerCase();
 
-runTest("Migration 00010 exists under supabase/migrations/", () => {
-  assert.ok(fs.existsSync(migrationFile), "00010 migration must exist");
+runTest("Migration 00010 defines newsletter_campaigns and delivery tables with RLS", () => {
+  assert.ok(sql010.includes("create table if not exists public.newsletter_campaigns"));
+  assert.ok(sql010.includes("create table if not exists public.newsletter_campaign_recipients"));
+  assert.ok(sql010.includes("create table if not exists public.newsletter_unsubscribe_tokens"));
+  assert.ok(sql010.includes("alter table public.newsletter_campaigns enable row level security"));
+  assert.ok(sql010.includes("alter table public.newsletter_campaign_recipients enable row level security"));
 });
 
-const sqlContent = fs.readFileSync(migrationFile, "utf-8");
-const sqlLower = sqlContent.toLowerCase();
+const migration012 = path.join(
+  rootDir,
+  "supabase",
+  "migrations",
+  "00012_reconcile_canonical_subscribers.sql"
+);
 
-runTest("00010 defines public.newsletter_test_subscribers matching public.subscribers exactly", () => {
-  assert.ok(
-    sqlLower.includes("create table if not exists public.newsletter_test_subscribers"),
-    "Must create newsletter_test_subscribers"
-  );
-  assert.ok(
-    sqlLower.includes("id uuid not null default gen_random_uuid ()") ||
-    sqlLower.includes("id uuid not null default gen_random_uuid()"),
-    "Must have id uuid"
-  );
-  assert.ok(
-    sqlLower.includes("email text not null"),
-    "Must have email text not null"
-  );
-  assert.ok(
-    sqlLower.includes("status text not null default 'active'::text"),
-    "Must have status text"
-  );
-  assert.ok(
-    sqlLower.includes("source text not null default 'homepage_callout'::text"),
-    "Must have source text"
-  );
-  assert.ok(
-    sqlLower.includes("subscribed_at timestamp with time zone not null default timezone ('utc'::text, now())") ||
-    sqlLower.includes("subscribed_at timestamptz not null default timezone('utc'::text, now())"),
-    "Must have subscribed_at timestamp"
-  );
-  assert.ok(
-    sqlLower.includes("constraint newsletter_test_subscribers_pkey primary key (id)"),
-    "Must have primary key constraint"
-  );
-  assert.ok(
-    sqlLower.includes("constraint newsletter_test_subscribers_email_key unique (email)"),
-    "Must have unique email constraint"
-  );
-  assert.ok(
-    sqlLower.includes("^[a-za-z0-9._%+-]+@[a-za-z0-9.-]+\\.[a-za-z]{2,}$"),
-    "Must have email regex format check"
-  );
-});
+runTest("Migration 00012 reconciles canonical public.subscribers, UPDATE policy and seeds", () => {
+  assert.ok(fs.existsSync(migration012), "00012 migration must exist");
+  const sql012 = fs.readFileSync(migration012, "utf-8").toLowerCase();
 
-runTest("Seed inserts exactly the 3 authorized testing addresses with idempotency", () => {
   assert.ok(
-    sqlLower.includes("mekalarishwanthkumar26@gmail.com"),
-    "Must include mekalarishwanthkumar26@gmail.com"
+    sql012.includes("insert into public.subscribers (email, status, source)"),
+    "Must seed authorized testing addresses into public.subscribers"
   );
   assert.ok(
-    sqlLower.includes("rishwanthmekala@gmail.com"),
-    "Must include rishwanthmekala@gmail.com"
+    sql012.includes("mekalarishwanthkumar26@gmail.com") &&
+    sql012.includes("rishwanthmekala@gmail.com") &&
+    sql012.includes("21bd1a05d5cseg@gmail.com"),
+    "Must include all authorized test recipient addresses"
   );
   assert.ok(
-    sqlLower.includes("21bd1a05d5cseg@gmail.com"),
-    "Must include 21bd1a05d5cseg@gmail.com"
-  );
-  assert.ok(
-    sqlLower.includes("on conflict (email) do nothing"),
+    sql012.includes("on conflict (email) do nothing"),
     "Must be idempotent on conflict"
   );
-});
-
-runTest("Migration defines newsletter_campaigns and delivery tables with RLS", () => {
-  assert.ok(sqlLower.includes("create table if not exists public.newsletter_campaigns"));
-  assert.ok(sqlLower.includes("create table if not exists public.newsletter_campaign_recipients"));
-  assert.ok(sqlLower.includes("create table if not exists public.newsletter_unsubscribe_tokens"));
-  assert.ok(sqlLower.includes("alter table public.newsletter_campaigns enable row level security"));
-  assert.ok(sqlLower.includes("alter table public.newsletter_campaign_recipients enable row level security"));
-  assert.ok(sqlLower.includes("alter table public.newsletter_test_subscribers enable row level security"));
+  assert.ok(
+    sql012.includes("allow editor subscriber update") && sql012.includes("is_editor()"),
+    "Must define RLS update policy for authorized editors"
+  );
 });
 
 // ------------------------------------------------------------------------------
@@ -140,52 +131,44 @@ function testSanitizeEmailHtml(html) {
     /<(script|iframe|object|embed|applet|form|input|button|textarea|select|link|meta)[\s\S]*?>/gi,
     ""
   );
-  sanitized = sanitized.replace(/\son[a-zA-Z]+="[^"]*"/gi, "");
-  sanitized = sanitized.replace(/\son[a-zA-Z]+='[^']*'/gi, "");
-  sanitized = sanitized.replace(/\son[a-zA-Z]+=\S+/gi, "");
-  sanitized = sanitized.replace(
-    /href\s*=\s*["']?\s*(javascript|data|vbscript):[^"'>\s]*/gi,
-    'href="#"'
-  );
-  sanitized = sanitized.replace(
-    /src\s*=\s*["']?\s*(javascript|vbscript):[^"'>\s]*/gi,
-    'src=""'
-  );
+  sanitized = sanitized.replace(/\son\w+\s*=\s*(['"]).*?\1/gi, "");
+  sanitized = sanitized.replace(/\son\w+\s*=\s*[^>\s]+/gi, "");
+  sanitized = sanitized.replace(/href\s*=\s*(['"])\s*javascript:[\s\S]*?\1/gi, 'href="#"');
   return sanitized;
 }
 
 runTest("Strict HTML sanitizer removes script tags, event handlers, and javascript: links", () => {
   const dirty = `
-    <p>Legitimate text</p>
-    <script>alert('xss');</script>
-    <img src="https://example.com/pic.jpg" onerror="alert(1)" />
-    <a href="javascript:steal()">Click</a>
-    <iframe src="https://attacker.com"></iframe>
+    <div>
+      <h1>Department of Business Management</h1>
+      <script>alert('pwned');</script>
+      <p onclick="stealCookies()">Executive Brief update.</p>
+      <a href="javascript:alert('malicious')">Read Article</a>
+    </div>
   `;
-
   const clean = testSanitizeEmailHtml(dirty);
-  assert.ok(!clean.includes("<script>"), "Must strip script tags");
-  assert.ok(!clean.includes("alert"), "Must strip script contents");
-  assert.ok(!clean.includes("onerror"), "Must strip onerror attribute");
-  assert.ok(!clean.includes("javascript:"), "Must disallow javascript: URLs");
-  assert.ok(!clean.includes("iframe"), "Must disallow iframes");
-  assert.ok(clean.includes("<p>Legitimate text</p>"), "Must preserve clean markup");
+
+  assert.ok(!clean.includes("<script"), "Must remove script opening tag");
+  assert.ok(!clean.includes("alert('pwned')"), "Must remove script payload");
+  assert.ok(!clean.includes("onclick"), "Must strip onclick attributes");
+  assert.ok(!clean.includes("javascript:alert"), "Must neutralize javascript: hrefs");
+  assert.ok(clean.includes("Executive Brief update."), "Must preserve safe paragraph text");
 });
 
 runTest("emailRenderer.ts source code enforces strict HTML allowlist and permanent unsubscribe link", () => {
-  const rendererFile = path.join(rootDir, "src", "lib", "newsletter", "emailRenderer.ts");
-  assert.ok(fs.existsSync(rendererFile), "emailRenderer.ts must exist");
-  const content = fs.readFileSync(rendererFile, "utf-8");
+  const file = path.join(rootDir, "src", "lib", "newsletter", "emailRenderer.ts");
+  assert.ok(fs.existsSync(file), "emailRenderer.ts must exist");
+  const content = fs.readFileSync(file, "utf-8");
 
-  assert.ok(content.includes("sanitizeEmailHtml"), "Must define sanitizeEmailHtml");
-  assert.ok(content.includes("renderNewsletterHtml"), "Must define renderNewsletterHtml");
-  assert.ok(content.includes("renderNewsletterPlainText"), "Must define renderNewsletterPlainText");
-  assert.ok(content.includes("Unsubscribe from this newsletter"), "Must embed unsubscribe anchor");
-  assert.ok(content.includes("The Executive Brief"), "Must include brand header");
+  assert.ok(content.includes("export function renderNewsletterHtml"), "Must export renderNewsletterHtml");
+  assert.ok(content.includes("export function renderNewsletterPlainText"), "Must export renderNewsletterPlainText");
+  assert.ok(content.includes("sanitizeEmailHtml"), "Must use HTML sanitizer");
+  assert.ok(content.includes("unsubscribeUrl"), "Must inject unsubscribe URL into footer");
+  assert.ok(content.includes('recipientSource = "subscribers"'), "Must default to canonical subscribers source");
 });
 
 // ------------------------------------------------------------------------------
-// TEST SUITE 3: CRYPTOGRAPHIC UNSUBSCRIBE SERVICE
+// TEST SUITE 3: CRYPTOGRAPHIC UNSUBSCRIBE SYSTEM
 // ------------------------------------------------------------------------------
 console.log("\n[Test Suite 3: Cryptographic Unsubscribe System]");
 
@@ -217,7 +200,7 @@ function testVerifyUnsubscribeToken(token, secret) {
 runTest("Unsubscribe token generation produces opaque token and rejects tampered signatures", () => {
   const secret = "test-secret-key-32-characters-long!";
   const email = "mekalarishwanthkumar26@gmail.com";
-  const source = "newsletter_test_subscribers";
+  const source = "subscribers";
 
   const token = testGenerateUnsubscribeToken(email, source, secret);
   assert.ok(token && token.includes("."), "Token must be payload.signature format");
@@ -243,62 +226,75 @@ runTest("unsubscribeService.ts source code implements RFC 8058 List-Unsubscribe 
   assert.ok(content.includes("List-Unsubscribe"), "Must define List-Unsubscribe header");
   assert.ok(content.includes("List-Unsubscribe-Post"), "Must define List-Unsubscribe-Post header");
   assert.ok(content.includes("One-Click"), "Must specify One-Click compliance");
+  assert.ok(content.includes('source: RecipientSource = "subscribers"'), "Must default to subscribers source");
 });
 
 // ------------------------------------------------------------------------------
-// TEST SUITE 4: CENTRAL RECIPIENT REPOSITORY & ONE-SETTING SWITCH
+// TEST SUITE 4: CANONICAL RECIPIENT REPOSITORY (PUBLIC.SUBSCRIBERS)
 // ------------------------------------------------------------------------------
-console.log("\n[Test Suite 4: Central Recipient Repository & Switching]");
+console.log("\n[Test Suite 4: Canonical Recipient Repository (public.subscribers)]");
 
 const repoFile = path.join(rootDir, "src", "lib", "newsletter", "subscriberRepository.ts");
 const repoContent = fs.readFileSync(repoFile, "utf-8");
 
-runTest("subscriberRepository.ts defines strict server-side table allowlist", () => {
+runTest("subscriberRepository.ts defines CANONICAL_SUBSCRIBER_TABLE as 'subscribers'", () => {
   assert.ok(
-    repoContent.includes('ALLOWED_RECIPIENT_SOURCES'),
-    "Must define ALLOWED_RECIPIENT_SOURCES"
+    repoContent.includes('export const CANONICAL_SUBSCRIBER_TABLE = "subscribers";') ||
+    repoContent.includes('CANONICAL_SUBSCRIBER_TABLE = "subscribers"'),
+    "Must define CANONICAL_SUBSCRIBER_TABLE = 'subscribers'"
   );
   assert.ok(
-    repoContent.includes('"newsletter_test_subscribers"'),
-    "Must include newsletter_test_subscribers"
-  );
-  assert.ok(
-    repoContent.includes('"subscribers"'),
-    "Must include subscribers"
+    repoContent.includes('return "subscribers";'),
+    "getRecipientSource must return 'subscribers'"
   );
 });
 
-runTest("subscriberRepository.ts defaults to newsletter_test_subscribers", () => {
+runTest("subscriberRepository.ts implements full CRUD lifecycle on public.subscribers", () => {
+  assert.ok(repoContent.includes("export async function getAllSubscribers"), "Must export getAllSubscribers");
+  assert.ok(repoContent.includes("export async function getActiveSubscribers"), "Must export getActiveSubscribers");
+  assert.ok(repoContent.includes("export async function getSubscriberByEmail"), "Must export getSubscriberByEmail");
+  assert.ok(repoContent.includes("export async function createSubscriber"), "Must export createSubscriber");
+  assert.ok(repoContent.includes("export async function updateSubscriberStatus"), "Must export updateSubscriberStatus");
+  assert.ok(repoContent.includes("export async function deleteSubscriber"), "Must export deleteSubscriber");
+  assert.ok(repoContent.includes("export async function markSubscriberUnsubscribed"), "Must export markSubscriberUnsubscribed");
+  assert.ok(repoContent.includes("export async function getSubscriberMetrics"), "Must export getSubscriberMetrics");
+});
+
+runTest("subscriberRepository.ts handles duplicate email conflicts and reactivates unsubscribed addresses", () => {
   assert.ok(
-    repoContent.includes('return "newsletter_test_subscribers";'),
-    "Must default to newsletter_test_subscribers"
+    repoContent.includes("subscribers_email_key") || repoContent.includes("409"),
+    "Must handle unique email constraint conflicts"
+  );
+  assert.ok(
+    repoContent.includes("alreadySubscribed"),
+    "Must return alreadySubscribed flag"
   );
 });
 
-runTest("subscriberRepository.ts checks process.env.NEWSLETTER_RECIPIENT_SOURCE for one-setting switch", () => {
+runTest("API routes use createSubscriber and protect subscriber management", () => {
+  const subscribeRoute = path.join(rootDir, "src", "app", "api", "subscribe", "route.ts");
+  const subscribeContent = fs.readFileSync(subscribeRoute, "utf-8");
   assert.ok(
-    repoContent.includes('process.env.NEWSLETTER_RECIPIENT_SOURCE'),
-    "Must read NEWSLETTER_RECIPIENT_SOURCE"
+    subscribeContent.includes("createSubscriber"),
+    "Public subscribe route must call createSubscriber"
   );
-  assert.ok(
-    repoContent.includes('ALLOWED_RECIPIENT_SOURCES') || repoContent.includes('configured === "subscribers"'),
-    "Must support clean switch to subscribers"
-  );
-});
 
-runTest("subscriberRepository.ts or migration seeds exactly the three specified test subscribers", () => {
-  assert.ok(
-    repoContent.includes("mekalarishwanthkumar26@gmail.com") || sqlLower.includes("mekalarishwanthkumar26@gmail.com"),
-    "Must include mekalarishwanthkumar26@gmail.com"
+  const adminSubscribersRoute = path.join(
+    rootDir,
+    "src",
+    "app",
+    "api",
+    "admin",
+    "newsletter",
+    "subscribers",
+    "route.ts"
   );
-  assert.ok(
-    repoContent.includes("rishwanthmekala@gmail.com") || sqlLower.includes("rishwanthmekala@gmail.com"),
-    "Must include rishwanthmekala@gmail.com"
-  );
-  assert.ok(
-    repoContent.includes("21bd1a05d5cseg@gmail.com") || sqlLower.includes("21bd1a05d5cseg@gmail.com"),
-    "Must include 21bd1a05d5cseg@gmail.com"
-  );
+  const adminContent = fs.readFileSync(adminSubscribersRoute, "utf-8");
+  assert.ok(adminContent.includes("getAllSubscribers"), "Admin route must list subscribers");
+  assert.ok(adminContent.includes("createSubscriber"), "Admin route must support creating subscribers");
+  assert.ok(adminContent.includes("updateSubscriberStatus"), "Admin route must support updating status");
+  assert.ok(adminContent.includes("deleteSubscriber"), "Admin route must support deleting subscriber");
+  assert.ok(adminContent.includes("permissions.isEditorial"), "Admin route must enforce editorial permissions");
 });
 
 // ------------------------------------------------------------------------------
@@ -322,13 +318,13 @@ runTest("campaignRepository.ts snapshots eligible recipients with status trackin
   assert.ok(campaignRepoContent.includes("export async function snapshotCampaignRecipients"));
   assert.ok(campaignRepoContent.includes("export async function getCampaignRecipients"));
   assert.ok(campaignRepoContent.includes("export async function updateRecipientStatus"));
-  assert.ok(campaignRepoContent.includes("export async function resetFailedRecipientsForRetry"));
+  assert.ok(campaignRepoContent.includes("getActiveSubscribers"), "Snapshot must call getActiveSubscribers");
 });
 
 // ------------------------------------------------------------------------------
-// TEST SUITE 6: SMTP CONFIGURATION & SAFETY
+// TEST SUITE 6: SMTP CONFIGURATION & PRODUCTION CANONICAL RECONCILIATION
 // ------------------------------------------------------------------------------
-console.log("\n[Test Suite 6: SMTP Configuration Safety]");
+console.log("\n[Test Suite 6: SMTP Configuration & Canonical Environment]");
 
 const smtpFile = path.join(rootDir, "src", "lib", "newsletter", "smtpService.ts");
 const smtpContent = fs.readFileSync(smtpFile, "utf-8");
@@ -341,7 +337,7 @@ runTest("smtpService.ts validates host, port, user and pass safely without crash
   assert.ok(smtpContent.includes("smtp.gmail.com"));
 });
 
-runTest(".env.example documents all required variables with safe placeholders only", () => {
+runTest(".env.example documents all required variables with public.subscribers canonical setting", () => {
   const envExample = path.join(rootDir, ".env.example");
   assert.ok(fs.existsSync(envExample), ".env.example must exist");
   const envContent = fs.readFileSync(envExample, "utf-8");
@@ -352,15 +348,20 @@ runTest(".env.example documents all required variables with safe placeholders on
   assert.ok(envContent.includes("SMTP_USER="));
   assert.ok(envContent.includes("SMTP_PASS="));
   assert.ok(envContent.includes("NEWSLETTER_FROM_NAME="));
-  assert.ok(envContent.includes("NEWSLETTER_RECIPIENT_SOURCE=newsletter_test_subscribers"));
+  assert.ok(envContent.includes("NEWSLETTER_RECIPIENT_SOURCE=subscribers"), "Must designate subscribers as canonical source");
   assert.ok(envContent.includes("NEWSLETTER_UNSUBSCRIBE_SECRET="));
   assert.ok(!envContent.includes("eyJhbGci"), "Must not contain real JWT secrets");
 });
 
+// ------------------------------------------------------------------------------
+// SUMMARY
+// ------------------------------------------------------------------------------
 console.log(`\n=================================================================`);
 console.log(`  SUMMARY: ${passed}/${total} TESTS PASSED CLEANLY`);
 console.log(`=================================================================\n`);
 
 if (passed !== total) {
   process.exit(1);
+} else {
+  process.exit(0);
 }

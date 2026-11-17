@@ -22,7 +22,7 @@ function getUnsubscribeSecret(): string {
  */
 export function generateUnsubscribeToken(
   email: string,
-  source: RecipientSource
+  source: RecipientSource = "subscribers"
 ): string {
   const cleanEmail = normalizeEmail(email);
   const secret = getUnsubscribeSecret();
@@ -67,8 +67,8 @@ export function verifyUnsubscribeToken(
 
     if (!rawEmail || !rawSource) return { valid: false };
 
-    const source: RecipientSource =
-      rawSource === "subscribers" ? "subscribers" : "newsletter_test_subscribers";
+    // Canonical source is always "subscribers"
+    const source: RecipientSource = "subscribers";
 
     return {
       valid: true,
@@ -85,7 +85,7 @@ export function verifyUnsubscribeToken(
  */
 export function generateUnsubscribeUrl(
   email: string,
-  source: RecipientSource,
+  source: RecipientSource = "subscribers",
   baseUrl?: string
 ): string {
   const token = generateUnsubscribeToken(email, source);
@@ -102,7 +102,7 @@ export function generateUnsubscribeUrl(
  */
 export function getListUnsubscribeHeaders(
   email: string,
-  source: RecipientSource,
+  source: RecipientSource = "subscribers",
   baseUrl?: string
 ): Record<string, string> {
   const url = generateUnsubscribeUrl(email, source, baseUrl);

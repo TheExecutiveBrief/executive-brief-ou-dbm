@@ -94,7 +94,7 @@ export function renderNewsletterHtml(
 ): string {
   const {
     recipientEmail = "subscriber@example.com",
-    recipientSource = "newsletter_test_subscribers",
+    recipientSource = "subscribers",
     baseUrl,
     isInteractivePreview = false,
   } = options;
@@ -437,7 +437,7 @@ export function renderNewsletterPlainText(
 ): string {
   const {
     recipientEmail = "subscriber@example.com",
-    recipientSource = "newsletter_test_subscribers",
+    recipientSource = "subscribers",
     baseUrl,
   } = options;
 

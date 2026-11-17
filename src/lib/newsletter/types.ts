@@ -4,7 +4,9 @@
 
 export type SubscriberStatus = "active" | "unsubscribed";
 
-export type RecipientSource = "newsletter_test_subscribers" | "subscribers";
+// Canonical recipient source: public.subscribers is the single production table.
+// 'newsletter_test_subscribers' is preserved as a legacy union for token decoding only.
+export type RecipientSource = "subscribers" | "newsletter_test_subscribers";
 
 export interface Subscriber {
   id: string;

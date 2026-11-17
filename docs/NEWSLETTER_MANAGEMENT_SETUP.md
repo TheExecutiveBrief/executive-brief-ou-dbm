@@ -28,8 +28,8 @@ NEWSLETTER_FROM_NAME="The Executive Brief"
 NEWSLETTER_FROM_EMAIL=executivebrief@oudbm.ac.in
 NEWSLETTER_REPLY_TO=executivebrief@oudbm.ac.in
 
-# Central Recipient Source ('newsletter_test_subscribers' during testing, 'subscribers' in production)
-NEWSLETTER_RECIPIENT_SOURCE=newsletter_test_subscribers
+# Central Recipient Source: public.subscribers (Production Table)
+NEWSLETTER_RECIPIENT_SOURCE=subscribers
 
 # Cryptographically Secure Unsubscribe Signing Secret
 NEWSLETTER_UNSUBSCRIBE_SECRET=your-random-32-char-unsubscribe-secret
@@ -68,18 +68,19 @@ To apply:
 
 ---
 
-## 4. How to Seed the Three Test Subscribers
+## 4. Canonical Subscriber Database: public.subscribers
 
-The migration automatically executes the idempotent seed:
+The system operates directly and exclusively against the canonical database table `public.subscribers`.
+Authorized editorial testing addresses can be seeded or verified in `public.subscribers` idempotently:
 ```sql
-insert into public.newsletter_test_subscribers (email, status, source)
+insert into public.subscribers (email, status, source)
 values 
   ('mekalarishwanthkumar26@gmail.com', 'active', 'homepage_callout'),
   ('rishwanthmekala@gmail.com', 'active', 'homepage_callout'),
   ('21bd1a05d5cseg@gmail.com', 'active', 'homepage_callout')
 on conflict (email) do nothing;
 ```
-If executing manually in the SQL Editor, rerun the snippet above. It will never create duplicates or modify `public.subscribers`.
+It will never create duplicate entries or alter existing subscriber records.
 
 ---
 
@@ -149,19 +150,12 @@ Access the Editorial Dashboard at: `http://localhost:3000/admin`
 
 ---
 
-## 10. The One-Setting Switch to Production
+## 10. Canonical Production Architecture
 
-When local verification is complete and you are ready to transition to the production subscriber pool:
+The system operates exclusively with `public.subscribers` as its single canonical subscriber database:
 
-Change **one single line** in your environment configuration:
-
-```diff
-- NEWSLETTER_RECIPIENT_SOURCE=newsletter_test_subscribers
-+ NEWSLETTER_RECIPIENT_SOURCE=subscribers
-```
-
-**Zero code modifications required:**
-- Both tables share the exact identical schema.
-- Campaign history and delivery audit logs remain fully intact.
-- The central server-only repository routes all queries to `public.subscribers`.
+- Listing, creation, status updates, and deletions execute against `public.subscribers`.
+- Campaign recipient snapshots are selected exclusively from active rows in `public.subscribers`.
+- Unsubscribe links update the recipient's record directly in `public.subscribers`.
+- Campaign delivery audit logs track history accurately across dispatches.
 - Unsubscribe links continue functioning seamlessly.

@@ -71,6 +71,76 @@ export default function NewsletterDashboard({
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Subscriber management state
+  const [subscriberSearch, setSubscriberSearch] = useState("");
+  const [isAddingSubscriber, setIsAddingSubscriber] = useState(false);
+  const [newSubEmail, setNewSubEmail] = useState("");
+  const [subActionLoading, setSubActionLoading] = useState(false);
+
+  const handleAddSubscriber = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubEmail.trim()) return;
+    setSubActionLoading(true);
+    try {
+      const res = await fetch("/api/admin/newsletter/subscribers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newSubEmail.trim(), source: "editorial_admin" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add subscriber");
+      if (data.alreadySubscribed) {
+        alert("This email address is already subscribed.");
+      } else if (data.subscriber) {
+        setSubscribers((prev) => [data.subscriber, ...prev]);
+        setNewSubEmail("");
+        setIsAddingSubscriber(false);
+      }
+      router.refresh();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error adding subscriber.");
+    } finally {
+      setSubActionLoading(false);
+    }
+  };
+
+  const handleToggleSubStatus = async (sub: Subscriber) => {
+    const nextStatus = sub.status === "active" ? "unsubscribed" : "active";
+    if (!confirm(`Change subscription status of ${sub.email} to ${nextStatus}?`)) return;
+    try {
+      const res = await fetch("/api/admin/newsletter/subscribers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: sub.id, status: nextStatus }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Status update failed.");
+      }
+      setSubscribers((prev) =>
+        prev.map((s) => (s.id === sub.id ? { ...s, status: nextStatus } : s))
+      );
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error updating subscriber.");
+    }
+  };
+
+  const handleDeleteSubscriber = async (sub: Subscriber) => {
+    if (!confirm(`Are you sure you want to permanently delete ${sub.email} from subscribers?`)) return;
+    try {
+      const res = await fetch(`/api/admin/newsletter/subscribers?id=${encodeURIComponent(sub.id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Delete failed.");
+      }
+      setSubscribers((prev) => prev.filter((s) => s.id !== sub.id));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error deleting subscriber.");
+    }
+  };
+
   const filteredCampaigns = campaigns.filter((c) => {
     if (activeTab === "drafts") {
       if (c.status !== "draft") return false;
@@ -229,7 +299,7 @@ export default function NewsletterDashboard({
             {metrics.activeSubscribers}
           </span>
           <span className="font-mono text-[10px] text-forest font-semibold">
-            {metrics.recipientSource === "subscribers" ? "Production Pool" : "Testing Pool (3 Seeded)"}
+            Production Pool (public.subscribers)
           </span>
         </div>
 
@@ -540,16 +610,64 @@ export default function NewsletterDashboard({
                 Audited Subscriber Registry
               </h2>
               <p className="font-sans text-xs text-ink-600 mt-0.5">
-                Target Source: <strong className="font-mono text-crimson">{metrics.recipientSource === "subscribers" ? "Production Table (public.subscribers)" : "Testing Table (public.newsletter_test_subscribers)"}</strong>
+                Target Source: <strong className="font-mono text-crimson">Production Table (public.subscribers)</strong>
               </p>
             </div>
-            <div className="flex items-center gap-2 font-mono text-xs">
-              <span className="bg-forest-light text-forest px-2 py-0.5 rounded font-bold">
-                {subscribers.filter((s) => s.status === "active").length} Active
-              </span>
-              <span className="bg-paper-200 text-ink-600 px-2 py-0.5 rounded">
-                {subscribers.filter((s) => s.status === "unsubscribed").length} Unsubscribed
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 font-mono text-xs">
+                <span className="bg-forest-light text-forest px-2 py-0.5 rounded font-bold">
+                  {subscribers.filter((s) => s.status === "active").length} Active
+                </span>
+                <span className="bg-paper-200 text-ink-600 px-2 py-0.5 rounded">
+                  {subscribers.filter((s) => s.status === "unsubscribed").length} Unsubscribed
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddingSubscriber(!isAddingSubscriber)}
+                className="px-3 py-1 bg-crimson hover:bg-crimson-dark text-white rounded font-mono text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>{isAddingSubscriber ? "Cancel" : "Add Subscriber"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Add Subscriber Form */}
+          {isAddingSubscriber && (
+            <form
+              onSubmit={handleAddSubscriber}
+              className="p-4 bg-paper-50 border-b border-editorial-border flex flex-col sm:flex-row items-center gap-3"
+            >
+              <input
+                type="email"
+                required
+                placeholder="Enter institutional or corporate email..."
+                value={newSubEmail}
+                onChange={(e) => setNewSubEmail(e.target.value)}
+                className="flex-1 bg-white border border-editorial-border px-3 py-1.5 rounded font-mono text-xs focus:outline-hidden focus:border-crimson"
+              />
+              <button
+                type="submit"
+                disabled={subActionLoading}
+                className="px-4 py-1.5 bg-forest hover:bg-forest-dark text-white rounded font-mono text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                {subActionLoading ? "Adding..." : "Save to public.subscribers"}
+              </button>
+            </form>
+          )}
+
+          {/* Search bar */}
+          <div className="p-3 border-b border-editorial-border/60 bg-paper">
+            <div className="relative max-w-sm">
+              <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search subscribers by email..."
+                value={subscriberSearch}
+                onChange={(e) => setSubscriberSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1 bg-paper-ivory border border-editorial-border rounded font-mono text-xs focus:outline-hidden focus:border-crimson"
+              />
             </div>
           </div>
 
@@ -560,34 +678,58 @@ export default function NewsletterDashboard({
                   <th className="py-3 px-4">Subscriber Email</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Acquisition Source</th>
-                  <th className="py-3 px-4 text-right">Subscribed At</th>
+                  <th className="py-3 px-4">Subscribed At</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-editorial-border font-sans text-xs">
-                {subscribers.map((s) => (
-                  <tr key={s.id} className="hover:bg-paper-50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-semibold text-ink-900">
-                      {s.email}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-block font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
-                          s.status === "active"
-                            ? "bg-forest-light text-forest"
-                            : "bg-paper-200 text-ink-500 line-through"
-                        }`}
-                      >
-                        {s.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-ink-600">
-                      {s.source}
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono text-[11px] text-ink-500">
-                      {new Date(s.subscribed_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
+                {subscribers
+                  .filter((s) =>
+                    subscriberSearch.trim()
+                      ? s.email.toLowerCase().includes(subscriberSearch.toLowerCase())
+                      : true
+                  )
+                  .map((s) => (
+                    <tr key={s.id} className="hover:bg-paper-50 transition-colors">
+                      <td className="py-3 px-4 font-mono font-semibold text-ink-900">
+                        {s.email}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`inline-block font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                            s.status === "active"
+                              ? "bg-forest-light text-forest"
+                              : "bg-paper-200 text-ink-500 line-through"
+                          }`}
+                        >
+                          {s.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-ink-600">
+                        {s.source}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-ink-500">
+                        {new Date(s.subscribed_at).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-4 text-right space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSubStatus(s)}
+                          className="px-2 py-0.5 bg-paper-200 hover:bg-paper-300 text-ink-700 rounded font-mono text-[10px] uppercase font-bold transition-colors"
+                        >
+                          {s.status === "active" ? "Unsubscribe" : "Activate"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSubscriber(s)}
+                          className="p-1 hover:text-crimson text-ink-400 transition-colors"
+                          title="Delete from public.subscribers"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
