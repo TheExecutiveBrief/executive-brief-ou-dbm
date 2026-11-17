@@ -57,6 +57,30 @@ export default function NewsletterDashboard({
   const [subscribers, setSubscribers] =
     useState<Subscriber[]>(initialSubscribers);
   const [metrics, setMetrics] = useState(initialMetrics);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [campaignsError, setCampaignsError] = useState<string | null>(null);
+
+  const fetchCampaigns = async () => {
+    setLoadingCampaigns(true);
+    setCampaignsError(null);
+    try {
+      const res = await fetch("/api/admin/newsletter/campaigns");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to load campaigns.");
+      }
+      const data = await res.json();
+      if (data.campaigns && Array.isArray(data.campaigns)) {
+        setCampaigns(data.campaigns);
+      }
+    } catch (err: unknown) {
+      setCampaignsError(
+        err instanceof Error ? err.message : "Error loading campaigns from Supabase database."
+      );
+    } finally {
+      setLoadingCampaigns(false);
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<
     "all" | "drafts" | "completed" | "subscribers" | "smtp"
@@ -438,20 +462,45 @@ export default function NewsletterDashboard({
           </button>
         </div>
 
-        {/* Search */}
+        {/* Search & Refresh */}
         {activeTab !== "subscribers" && activeTab !== "smtp" && (
-          <div className="relative sm:w-64">
-            <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search campaigns..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-paper-ivory border border-editorial-border font-sans text-xs text-ink-900 focus:outline-none focus:border-crimson rounded"
-            />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={fetchCampaigns}
+              disabled={loadingCampaigns}
+              title="Refresh campaigns from Supabase database"
+              className="p-1.5 border border-editorial-border rounded bg-paper-ivory hover:bg-paper-200 text-ink-700 disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingCampaigns ? "animate-spin text-crimson" : ""}`} />
+            </button>
+            <div className="relative sm:w-64">
+              <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search campaigns..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-paper-ivory border border-editorial-border font-sans text-xs text-ink-900 focus:outline-none focus:border-crimson rounded"
+              />
+            </div>
           </div>
         )}
       </div>
+
+      {/* ERROR BANNER IF ANY */}
+      {campaignsError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded text-xs text-red-700 flex items-center justify-between">
+          <span>{campaignsError}</span>
+          <button
+            type="button"
+            onClick={fetchCampaigns}
+            className="font-bold underline ml-2"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* VIEW 1 & 2: CAMPAIGNS LIST */}
       {activeTab !== "subscribers" && activeTab !== "smtp" && (
@@ -511,6 +560,9 @@ export default function NewsletterDashboard({
                         </Link>
                         <span className="text-[11px] text-ink-600 block truncate max-w-md">
                           {c.email_subject}
+                        </span>
+                        <span className="font-mono text-[10px] text-ink-400 block mt-0.5 tracking-tight">
+                          ID: {c.id}
                         </span>
                       </td>
 

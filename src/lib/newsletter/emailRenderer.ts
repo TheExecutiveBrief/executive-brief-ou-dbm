@@ -1,11 +1,8 @@
 // ==============================================================================
 // The Executive Brief by OU DBM
 // Unified Newsletter HTML & Plain-Text Rendering Engine
-// Used identically for:
-// 1. Composer live preview
-// 2. Desktop preview
-// 3. Mobile preview
-// 4. Actual outgoing email sending
+// Supports both Visual Component Documents (v2) and Legacy Campaign Formats
+// Compatible with Gmail, Apple Mail, Outlook (MSO), and modern mobile clients
 // ==============================================================================
 
 import {
@@ -14,13 +11,23 @@ import {
   FooterData,
   RecipientSource,
 } from "./types";
-import { generateUnsubscribeUrl } from "./unsubscribeService";
+import {
+  VisualDocument,
+  NewsletterBlock,
+  DesignerTheme,
+  THEME_EDITORIAL_CLASSIC,
+} from "./designerTypes";
+import {
+  isVisualDocument,
+  normalizeToVisualDocument,
+} from "./contentConverter";
 
 export interface RenderOptions {
   recipientEmail?: string;
   recipientSource?: RecipientSource;
   baseUrl?: string;
   isInteractivePreview?: boolean;
+  unsubscribeUrl?: string;
 }
 
 /**
@@ -60,24 +67,31 @@ export function sanitizeEmailHtml(html: string): string {
   return sanitized;
 }
 
+export function escapeHtml(str: string): string {
+  if (!str || typeof str !== "string") return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /**
- * Helper to extract raw HTML from Tiptap JSON content or HTML string.
+ * Extracts raw HTML from Tiptap JSON content or HTML string.
  */
 export function extractHtmlFromContent(content: any): string {
   if (!content) return "";
   if (typeof content === "string") {
-    // If it's already HTML
     if (content.trim().startsWith("<") || content.includes("<p>")) {
       return content;
     }
-    // If it's plain text, wrap paragraphs
     return content
       .split(/\n\n+/)
       .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
       .join("");
   }
 
-  // If it's Tiptap JSON with HTML export or nested nodes
   if (typeof content === "object" && content.html) {
     return content.html;
   }
@@ -86,7 +100,486 @@ export function extractHtmlFromContent(content: any): string {
 }
 
 /**
- * Renders the complete, email-client-compatible HTML document for a campaign.
+ * Renders an individual visual block to email-compatible table markup.
+ */
+function renderBlockHtml(
+  block: NewsletterBlock,
+  theme: DesignerTheme,
+  unsubscribeUrl: string
+): string {
+  const padTop = block.paddingTop ?? 12;
+  const padBottom = block.paddingBottom ?? 12;
+  const padLeft = block.paddingLeft ?? 32;
+  const padRight = block.paddingRight ?? 32;
+
+  switch (block.type) {
+    case "masthead": {
+      return `
+      <!-- BLOCK: MASTHEAD -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg}; ${block.showBorderBottom ? `border-bottom: 2px solid ${theme.textColor};` : ""}">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="${block.alignment || "center"}">
+                <p style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; color: ${theme.accentColor};">
+                  ${escapeHtml(block.categoryEyebrow)}
+                </p>
+                <h1 style="margin: 0; font-family: ${theme.headingFont}; font-size: 32px; font-weight: bold; letter-spacing: -0.5px; text-transform: uppercase; color: ${theme.textColor}; line-height: 1.15;">
+                  ${escapeHtml(block.mainTitle)}
+                </h1>
+                <p style="margin: 6px 0 0 0; font-family: ${theme.bodyFont}; font-size: 13px; font-style: italic; color: ${theme.mutedColor};">
+                  ${escapeHtml(block.subtitle)}
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    case "date_edition_strip": {
+      return `
+      <!-- BLOCK: DATE & EDITION STRIP -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.cardBg}; border-bottom: 1px solid ${theme.borderColor};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="left" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; color: ${theme.mutedColor}; text-transform: uppercase; letter-spacing: 0.5px;">
+                ${escapeHtml(block.dateText)}
+              </td>
+              <td align="right" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; color: ${theme.accentColor}; text-transform: uppercase; letter-spacing: 0.5px;">
+                ${escapeHtml(block.editionText)}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    case "heading": {
+      const tag = block.level || "h2";
+      const size =
+        block.fontSize ||
+        (tag === "h1" ? 26 : tag === "h2" ? 22 : 18);
+      const color = block.color || theme.textColor;
+      return `
+      <!-- BLOCK: HEADING (${tag.toUpperCase()}) -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <h2 style="margin: 0; font-family: ${theme.headingFont}; font-size: ${size}px; line-height: 1.35; font-weight: bold; color: ${color}; text-align: ${block.alignment || "left"}; ${tag === "h2" ? `border-bottom: 1px solid ${theme.borderColor}; padding-bottom: 6px;` : ""}">
+            ${escapeHtml(block.text)}
+          </h2>
+        </td>
+      </tr>`;
+    }
+
+    case "subheading": {
+      const size = block.fontSize || 17;
+      const color = block.color || theme.accentColor;
+      return `
+      <!-- BLOCK: SUBHEADING -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <p style="margin: 0; font-family: ${theme.headingFont}; font-size: ${size}px; line-height: 1.4; font-weight: bold; color: ${color}; text-align: ${block.alignment || "left"}; ${block.italic ? "font-style: italic;" : ""}">
+            ${escapeHtml(block.text)}
+          </p>
+        </td>
+      </tr>`;
+    }
+
+    case "paragraph": {
+      const size = block.fontSize || 16;
+      const lh = block.lineHeight || 1.65;
+      const color = block.color || "#27272a";
+      const paragraphs = block.text
+        .split(/\n\n+/)
+        .map((p) => escapeHtml(p).replace(/\n/g, "<br />"));
+
+      return `
+      <!-- BLOCK: PARAGRAPH -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          ${paragraphs
+            .map(
+              (p, i) =>
+                `<p style="margin: 0 0 ${i === paragraphs.length - 1 ? 0 : 16}px 0; font-family: ${theme.bodyFont}; font-size: ${size}px; line-height: ${lh}; color: ${color}; text-align: ${block.alignment || "left"};">${p}</p>`
+            )
+            .join("")}
+        </td>
+      </tr>`;
+    }
+
+    case "rich_text": {
+      const clean = sanitizeEmailHtml(block.html || "");
+      return `
+      <!-- BLOCK: RICH TEXT -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg}; font-family: ${theme.bodyFont}; font-size: 16px; line-height: 1.65; color: #27272a;">
+          ${clean}
+        </td>
+      </tr>`;
+    }
+
+    case "editorial_quote": {
+      const borderColor = block.borderAccentColor || theme.accentColor;
+      return `
+      <!-- BLOCK: EDITORIAL QUOTATION -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${theme.cardBg}; border-left: 4px solid ${borderColor};">
+            <tr>
+              <td style="padding: 16px 20px;">
+                <p style="margin: 0 0 ${block.attribution ? "8px" : "0"}; font-family: ${theme.headingFont}; font-size: 16px; line-height: 1.6; font-style: italic; color: ${theme.textColor};">
+                  &ldquo;${escapeHtml(block.quoteText)}&rdquo;
+                </p>
+                ${
+                  block.attribution
+                    ? `<p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: bold; color: ${theme.mutedColor}; text-transform: uppercase; letter-spacing: 0.5px;">
+                        &mdash; ${escapeHtml(block.attribution)}${block.attributionTitle ? `, <span style="font-weight: normal; text-transform: none;">${escapeHtml(block.attributionTitle)}</span>` : ""}
+                      </p>`
+                    : ""
+                }
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    case "highlight_box": {
+      let bg = theme.cardBg;
+      let border = theme.borderColor;
+      let textCol = theme.textColor;
+
+      if (block.variant === "crimson") {
+        bg = "#fff1f1";
+        border = theme.accentColor;
+      } else if (block.variant === "gold") {
+        bg = "#fefce8";
+        border = "#ca8a04";
+      } else if (block.variant === "slate") {
+        bg = "#f1f5f9";
+        border = "#64748b";
+      }
+
+      return `
+      <!-- BLOCK: HIGHLIGHT BOX -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${bg}; border: 1px solid ${border}; border-radius: ${theme.borderRadius}px;">
+            <tr>
+              <td style="padding: 18px 20px;">
+                ${
+                  block.title
+                    ? `<p style="margin: 0 0 8px 0; font-family: ${theme.headingFont}; font-size: 16px; font-weight: bold; color: ${textCol};">
+                        ${escapeHtml(block.title)}
+                      </p>`
+                    : ""
+                }
+                <div style="font-family: ${theme.bodyFont}; font-size: 14px; line-height: 1.55; color: ${textCol};">
+                  ${escapeHtml(block.content).replace(/\n/g, "<br />")}
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    case "image": {
+      const align = block.alignment || "center";
+      const width = block.widthPercent || 100;
+      const imgHtml = `<img src="${escapeHtml(block.url)}" alt="${escapeHtml(block.alt)}" width="600" style="width: ${width}%; max-width: 100%; height: auto; display: block; border-radius: ${block.borderRadius ?? theme.borderRadius}px; margin: 0 ${align === "center" ? "auto" : align === "right" ? "0 0 auto" : "0"};" />`;
+
+      return `
+      <!-- BLOCK: IMAGE -->
+      <tr>
+        <td align="${align}" style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          ${block.href ? `<a href="${escapeHtml(block.href)}" style="text-decoration: none; display: block;">${imgHtml}</a>` : imgHtml}
+          ${
+            block.caption
+              ? `<p style="margin: 8px 0 0 0; font-family: ${theme.bodyFont}; font-size: 12px; font-style: italic; color: ${theme.mutedColor}; text-align: ${align};">
+                  ${escapeHtml(block.caption)}
+                </p>`
+              : ""
+          }
+        </td>
+      </tr>`;
+    }
+
+    case "image_caption": {
+      const align = block.alignment || "center";
+      return `
+      <!-- BLOCK: IMAGE WITH CAPTION -->
+      <tr>
+        <td align="${align}" style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <img src="${escapeHtml(block.url)}" alt="${escapeHtml(block.alt)}" width="600" style="width: ${block.widthPercent || 100}%; max-width: 100%; height: auto; display: block; margin: 0 auto; border-radius: ${theme.borderRadius}px;" />
+          <p style="margin: 8px 0 0 0; font-family: ${theme.bodyFont}; font-size: 13px; font-style: italic; color: ${theme.mutedColor}; text-align: ${align};">
+            ${escapeHtml(block.captionText)}${block.captionAuthor ? ` &mdash; <strong style="font-style: normal;">${escapeHtml(block.captionAuthor)}</strong>` : ""}
+          </p>
+        </td>
+      </tr>`;
+    }
+
+    case "divider": {
+      const width = block.widthPercent || 100;
+      const color = block.color || theme.borderColor;
+      const thick = block.thickness || 1;
+      return `
+      <!-- BLOCK: DIVIDER -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <table role="presentation" width="${width}%" align="center" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="border-top: ${thick}px ${block.style || "solid"} ${color}; line-height: 1px; font-size: 1px;">&nbsp;</td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    case "spacer": {
+      const height = block.height || 24;
+      return `
+      <!-- BLOCK: SPACER -->
+      <tr>
+        <td style="height: ${height}px; line-height: ${height}px; font-size: 1px; background-color: ${theme.contentBg};">&nbsp;</td>
+      </tr>`;
+    }
+
+    case "cta_button": {
+      const bg = block.backgroundColor || theme.accentColor;
+      const textCol = block.textColor || "#ffffff";
+      const rad = block.borderRadius ?? theme.borderRadius ?? 3;
+      const pv = block.paddingVertical || 12;
+      const ph = block.paddingHorizontal || 24;
+      const align = block.alignment || "center";
+
+      return `
+      <!-- BLOCK: CALL-TO-ACTION BUTTON -->
+      <tr>
+        <td align="${align}" style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" ${block.fullWidth ? 'width="100%"' : ""}>
+            <tr>
+              <td align="center" style="border-radius: ${rad}px; background-color: ${bg};">
+                <a href="${escapeHtml(block.buttonUrl)}" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: bold; letter-spacing: 0.5px; color: ${textCol}; text-decoration: none; padding: ${pv}px ${ph}px; display: inline-block; border-radius: ${rad}px; text-transform: uppercase;">
+                  ${escapeHtml(block.buttonText)}
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    case "featured_article": {
+      return `
+      <!-- BLOCK: FEATURED ARTICLE CARD -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${theme.cardBg}; border: 1px solid ${theme.borderColor}; border-left: 4px solid ${theme.accentColor};">
+            ${
+              block.imageUrl
+                ? `<tr>
+                    <td>
+                      <a href="${escapeHtml(block.articleUrl)}" style="text-decoration: none; display: block;">
+                        <img src="${escapeHtml(block.imageUrl)}" alt="${escapeHtml(block.title)}" width="600" style="width: 100%; max-height: 240px; object-fit: cover; display: block; border-bottom: 1px solid ${theme.borderColor};" />
+                      </a>
+                    </td>
+                  </tr>`
+                : ""
+            }
+            <tr>
+              <td style="padding: 20px 24px;">
+                <p style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase; color: ${theme.accentColor};">
+                  ${escapeHtml(block.category || "Special Report")} ${block.readingTime ? `&bull; ${escapeHtml(block.readingTime)}` : ""}
+                </p>
+                <h3 style="margin: 0 0 8px 0; font-family: ${theme.headingFont}; font-size: 20px; font-weight: bold; color: ${theme.textColor}; line-height: 1.3;">
+                  <a href="${escapeHtml(block.articleUrl)}" style="color: ${theme.textColor}; text-decoration: none;">
+                    ${escapeHtml(block.title)}
+                  </a>
+                </h3>
+                ${
+                  block.description
+                    ? `<p style="margin: 0 0 16px 0; font-family: ${theme.bodyFont}; font-size: 14px; line-height: 1.5; color: ${theme.mutedColor};">
+                        ${escapeHtml(block.description)}
+                      </p>`
+                    : ""
+                }
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center" style="border-radius: ${theme.borderRadius}px; background-color: ${theme.accentColor};">
+                      <a href="${escapeHtml(block.articleUrl)}" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 10px 18px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;">
+                        ${escapeHtml(block.buttonText || "Read Article →")}
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    case "two_column": {
+      const leftRatio =
+        block.ratio === "60_40" ? "60%" : block.ratio === "40_60" ? "40%" : "50%";
+      const rightRatio =
+        block.ratio === "60_40" ? "40%" : block.ratio === "40_60" ? "60%" : "50%";
+
+      return `
+      <!-- BLOCK: TWO COLUMN CONTENT -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td class="responsive-column" width="${leftRatio}" valign="top" style="padding-right: 12px;">
+                ${
+                  block.leftColumn.imageUrl
+                    ? `<img src="${escapeHtml(block.leftColumn.imageUrl)}" alt="Column 1" width="280" style="width: 100%; height: auto; display: block; margin-bottom: 10px; border-radius: ${theme.borderRadius}px;" />`
+                    : ""
+                }
+                ${
+                  block.leftColumn.heading
+                    ? `<h4 style="margin: 0 0 6px 0; font-family: ${theme.headingFont}; font-size: 16px; font-weight: bold; color: ${theme.textColor};">${escapeHtml(block.leftColumn.heading)}</h4>`
+                    : ""
+                }
+                <p style="margin: 0; font-family: ${theme.bodyFont}; font-size: 14px; line-height: 1.5; color: #27272a;">
+                  ${escapeHtml(block.leftColumn.text).replace(/\n/g, "<br />")}
+                </p>
+                ${
+                  block.leftColumn.buttonText && block.leftColumn.buttonUrl
+                    ? `<div style="margin-top: 10px;"><a href="${escapeHtml(block.leftColumn.buttonUrl)}" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: bold; color: ${theme.accentColor}; text-decoration: none;">${escapeHtml(block.leftColumn.buttonText)} &rarr;</a></div>`
+                    : ""
+                }
+              </td>
+              <td class="responsive-column" width="${rightRatio}" valign="top" style="padding-left: 12px;">
+                ${
+                  block.rightColumn.imageUrl
+                    ? `<img src="${escapeHtml(block.rightColumn.imageUrl)}" alt="Column 2" width="280" style="width: 100%; height: auto; display: block; margin-bottom: 10px; border-radius: ${theme.borderRadius}px;" />`
+                    : ""
+                }
+                ${
+                  block.rightColumn.heading
+                    ? `<h4 style="margin: 0 0 6px 0; font-family: ${theme.headingFont}; font-size: 16px; font-weight: bold; color: ${theme.textColor};">${escapeHtml(block.rightColumn.heading)}</h4>`
+                    : ""
+                }
+                <p style="margin: 0; font-family: ${theme.bodyFont}; font-size: 14px; line-height: 1.5; color: #27272a;">
+                  ${escapeHtml(block.rightColumn.text).replace(/\n/g, "<br />")}
+                </p>
+                ${
+                  block.rightColumn.buttonText && block.rightColumn.buttonUrl
+                    ? `<div style="margin-top: 10px;"><a href="${escapeHtml(block.rightColumn.buttonUrl)}" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: bold; color: ${theme.accentColor}; text-decoration: none;">${escapeHtml(block.rightColumn.buttonText)} &rarr;</a></div>`
+                    : ""
+                }
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    case "three_column": {
+      return `
+      <!-- BLOCK: THREE COLUMN CONTENT -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td class="responsive-column" width="33.33%" valign="top" style="padding-right: 8px;">
+                ${block.col1.imageUrl ? `<img src="${escapeHtml(block.col1.imageUrl)}" alt="Col 1" width="180" style="width: 100%; height: auto; display: block; margin-bottom: 8px; border-radius: ${theme.borderRadius}px;" />` : ""}
+                ${block.col1.heading ? `<h4 style="margin: 0 0 4px 0; font-family: ${theme.headingFont}; font-size: 14px; font-weight: bold; color: ${theme.textColor};">${escapeHtml(block.col1.heading)}</h4>` : ""}
+                <p style="margin: 0; font-family: ${theme.bodyFont}; font-size: 13px; line-height: 1.45; color: #27272a;">${escapeHtml(block.col1.text)}</p>
+              </td>
+              <td class="responsive-column" width="33.33%" valign="top" style="padding-left: 4px; padding-right: 4px;">
+                ${block.col2.imageUrl ? `<img src="${escapeHtml(block.col2.imageUrl)}" alt="Col 2" width="180" style="width: 100%; height: auto; display: block; margin-bottom: 8px; border-radius: ${theme.borderRadius}px;" />` : ""}
+                ${block.col2.heading ? `<h4 style="margin: 0 0 4px 0; font-family: ${theme.headingFont}; font-size: 14px; font-weight: bold; color: ${theme.textColor};">${escapeHtml(block.col2.heading)}</h4>` : ""}
+                <p style="margin: 0; font-family: ${theme.bodyFont}; font-size: 13px; line-height: 1.45; color: #27272a;">${escapeHtml(block.col2.text)}</p>
+              </td>
+              <td class="responsive-column" width="33.33%" valign="top" style="padding-left: 8px;">
+                ${block.col3.imageUrl ? `<img src="${escapeHtml(block.col3.imageUrl)}" alt="Col 3" width="180" style="width: 100%; height: auto; display: block; margin-bottom: 8px; border-radius: ${theme.borderRadius}px;" />` : ""}
+                ${block.col3.heading ? `<h4 style="margin: 0 0 4px 0; font-family: ${theme.headingFont}; font-size: 14px; font-weight: bold; color: ${theme.textColor};">${escapeHtml(block.col3.heading)}</h4>` : ""}
+                <p style="margin: 0; font-family: ${theme.bodyFont}; font-size: 13px; line-height: 1.45; color: #27272a;">${escapeHtml(block.col3.text)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    case "social_links": {
+      const align = block.alignment || "center";
+      return `
+      <!-- BLOCK: SOCIAL LINKS -->
+      <tr>
+        <td align="${align}" style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.contentBg};">
+          <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; color: ${theme.mutedColor};">
+            ${block.websiteUrl ? `<a href="${escapeHtml(block.websiteUrl)}" style="color: ${theme.accentColor}; text-decoration: none; margin: 0 8px;">Website</a> &bull;` : ""}
+            ${block.emailUrl ? `<a href="mailto:${escapeHtml(block.emailUrl)}" style="color: ${theme.accentColor}; text-decoration: none; margin: 0 8px;">Email</a> &bull;` : ""}
+            ${block.linkedinUrl ? `<a href="${escapeHtml(block.linkedinUrl)}" style="color: ${theme.accentColor}; text-decoration: none; margin: 0 8px;">LinkedIn</a>` : ""}
+          </p>
+        </td>
+      </tr>`;
+    }
+
+    case "footer": {
+      return `
+      <!-- BLOCK: EDITORIAL FOOTER -->
+      <tr>
+        <td style="padding: ${padTop}px ${padLeft}px ${padBottom}px ${padRight}px; background-color: ${theme.cardBg}; ${block.showDivider ? `border-top: 2px solid ${theme.textColor};` : ""}">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="center" style="padding-bottom: 16px;">
+                <p style="margin: 0; font-family: ${theme.headingFont}; font-size: 18px; font-weight: bold; text-transform: uppercase; color: ${theme.textColor};">
+                  ${escapeHtml(block.brandName)}
+                </p>
+                <p style="margin: 4px 0 0 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; color: ${theme.mutedColor};">
+                  ${escapeHtml(block.departmentName)}
+                </p>
+                <p style="margin: 8px 0 0 0; font-family: ${theme.bodyFont}; font-size: 13px; font-style: italic; color: ${theme.mutedColor}; max-width: 480px; line-height: 1.4;">
+                  ${escapeHtml(block.description)}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding: 12px 0; border-top: 1px solid ${theme.borderColor}; border-bottom: 1px solid ${theme.borderColor};">
+                <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; color: ${theme.mutedColor};">
+                  <a href="${escapeHtml(block.websiteUrl)}" style="color: ${theme.accentColor}; text-decoration: none; font-weight: 600; margin: 0 8px;">Website</a>
+                  &bull;
+                  <a href="mailto:${escapeHtml(block.contactEmail)}" style="color: ${theme.accentColor}; text-decoration: none; font-weight: 600; margin: 0 8px;">Contact Editorial</a>
+                </p>
+              </td>
+            </tr>
+            ${
+              block.showUnsubscribe
+                ? `<tr>
+                    <td align="center" style="padding-top: 18px;">
+                      <p style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: ${theme.mutedColor};">
+                        You are receiving this dispatch because you subscribed via The Executive Brief editorial portal.
+                      </p>
+                      <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px;">
+                        <a href="${unsubscribeUrl}" style="color: ${theme.mutedColor}; text-decoration: underline; font-weight: 600;">
+                          Unsubscribe from this newsletter
+                        </a>
+                      </p>
+                    </td>
+                  </tr>`
+                : ""
+            }
+          </table>
+        </td>
+      </tr>`;
+    }
+
+    default:
+      return "";
+  }
+}
+
+/**
+ * Renders the complete email HTML document.
+ * Automatically handles structured VisualDocument (v2) as well as legacy campaign records.
  */
 export function renderNewsletterHtml(
   campaign: Partial<NewsletterCampaign>,
@@ -101,28 +594,25 @@ export function renderNewsletterHtml(
 
   const unsubscribeUrl = isInteractivePreview
     ? "#unsubscribe-preview"
-    : generateUnsubscribeUrl(recipientEmail, recipientSource, baseUrl);
+    : options.unsubscribeUrl ||
+      (options.recipientEmail
+        ? `https://teboudbm.vercel.app/unsubscribe?email=${encodeURIComponent(options.recipientEmail)}`
+        : "https://teboudbm.vercel.app/unsubscribe");
 
-  const subject = campaign.email_subject || "The Executive Brief — Weekly Dispatch";
-  const preheader = campaign.preview_text || "Department of Business Management, Osmania University";
-  const category = campaign.category?.toUpperCase() || "WEEKLY BRIEFING";
-  const senderName = campaign.sender_name || "The Executive Brief";
+  const subject =
+    campaign.email_subject || "The Executive Brief — Weekly Dispatch";
+  const preheader =
+    campaign.preview_text ||
+    "Department of Business Management, Osmania University";
 
-  const rawBody = extractHtmlFromContent(campaign.editor_content) || "<p>Welcome to this edition of The Executive Brief.</p>";
-  const cleanBody = sanitizeEmailHtml(rawBody);
+  // Normalize into a VisualDocument
+  const doc = normalizeToVisualDocument(campaign);
+  const theme = doc.theme || THEME_EDITORIAL_CLASSIC;
 
-  const featured = campaign.featured_article_data;
-  const footer = campaign.footer_data;
-
-  // Branded Color Palette
-  const crimson = "#8b0000";
-  const crimsonDark = "#700000";
-  const ink = "#111827";
-  const textMuted = "#4b5563";
-  const textLight = "#6b7280";
-  const bgPaper = "#faf8f5";
-  const bgCard = "#f4efe6";
-  const borderCol = "#e5e0d8";
+  // Render all blocks sequentially
+  const renderedBlocksHtml = doc.blocks
+    .map((b) => renderBlockHtml(b, theme, unsubscribeUrl))
+    .join("\n");
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
@@ -140,7 +630,7 @@ export function renderNewsletterHtml(
     body {
       margin: 0;
       padding: 0;
-      background-color: #f0ece1;
+      background-color: ${theme.canvasBg};
       -webkit-text-size-adjust: 100%;
       -ms-text-size-adjust: 100%;
     }
@@ -158,204 +648,36 @@ export function renderNewsletterHtml(
       -ms-interpolation-mode: bicubic;
       max-width: 100%;
     }
-    .body-content h1 {
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 26px;
-      line-height: 1.3;
-      color: ${ink};
-      margin: 24px 0 12px 0;
-      font-weight: bold;
-    }
-    .body-content h2 {
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 20px;
-      line-height: 1.35;
-      color: ${ink};
-      margin: 20px 0 10px 0;
-      font-weight: bold;
-      border-bottom: 1px solid ${borderCol};
-      padding-bottom: 6px;
-    }
-    .body-content h3 {
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 17px;
-      line-height: 1.4;
-      color: ${crimson};
-      margin: 16px 0 8px 0;
-      font-weight: bold;
-    }
-    .body-content p {
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 16px;
-      line-height: 1.65;
-      color: #27272a;
-      margin: 0 0 16px 0;
-    }
-    .body-content a {
-      color: ${crimson};
-      text-decoration: underline;
-      font-weight: 500;
-    }
-    .body-content blockquote {
-      margin: 20px 0;
-      padding: 12px 20px;
-      background-color: ${bgCard};
-      border-left: 4px solid ${crimson};
-      font-style: italic;
-      color: ${ink};
-      font-family: Georgia, "Times New Roman", serif;
-    }
-    .body-content ul, .body-content ol {
-      margin: 0 0 16px 0;
-      padding-left: 24px;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 15px;
-      line-height: 1.6;
-      color: #27272a;
-    }
-    .body-content li {
-      margin-bottom: 6px;
-    }
-    .body-content hr {
-      border: 0;
-      border-top: 1px solid ${borderCol};
-      margin: 24px 0;
-    }
-    .body-content table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 16px 0;
-      font-size: 14px;
-    }
-    .body-content th, .body-content td {
-      border: 1px solid ${borderCol};
-      padding: 8px 12px;
-      text-align: left;
-    }
-    .body-content th {
-      background-color: ${bgCard};
-      font-weight: bold;
-    }
-    .body-content img {
-      margin: 16px auto;
-      display: block;
-      border-radius: 2px;
+    @media only screen and (max-width: 620px) {
+      .email-container {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .responsive-column {
+        display: block !important;
+        width: 100% !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        padding-bottom: 16px !important;
+      }
     }
   </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f0ece1;">
+<body style="margin: 0; padding: 0; background-color: ${theme.canvasBg};">
 
   <!-- Preheader preview text (hidden in email body) -->
-  <div style="display: none; font-size: 1px; color: #f0ece1; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
+  <div style="display: none; font-size: 1px; color: ${theme.canvasBg}; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
     ${escapeHtml(preheader)} &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
   </div>
 
   <!-- Outer Canvas Container -->
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f0ece1; width: 100%; margin: 0; padding: 24px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${theme.canvasBg}; width: 100%; margin: 0; padding: 24px 12px;">
     <tr>
       <td align="center">
         <!-- 600px Max-Width Email Shell -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background-color: ${bgPaper}; border: 1px solid ${borderCol}; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <table role="presentation" class="email-container" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: ${theme.containerWidth || 600}px; width: 100%; background-color: ${theme.contentBg}; border: 1px solid ${theme.borderColor}; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: ${theme.borderRadius || 2}px; overflow: hidden;">
           
-          <!-- TOP MASTHEAD & BRANDING HEADER -->
-          <tr>
-            <td style="padding: 28px 32px 20px 32px; background-color: ${bgPaper}; border-bottom: 2px solid ${ink};">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="center">
-                    <!-- Eyebrow -->
-                    <p style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; color: ${crimson};">
-                      ${escapeHtml(category)} &bull; OSMANIA UNIVERSITY DBM
-                    </p>
-                    <!-- Main Brand -->
-                    <h1 style="margin: 0; font-family: Georgia, 'Times New Roman', Times, serif; font-size: 32px; font-weight: bold; letter-spacing: -0.5px; text-transform: uppercase; color: ${ink}; line-height: 1.15;">
-                      The Executive Brief
-                    </h1>
-                    <!-- Credo / Department Line -->
-                    <p style="margin: 6px 0 0 0; font-family: Georgia, 'Times New Roman', Times, serif; font-size: 13px; font-style: italic; color: ${textMuted};">
-                      Department of Business Management &bull; Hyderabad, India
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- DATE & ISSUE STRIP -->
-          <tr>
-            <td style="padding: 10px 32px; background-color: ${bgCard}; border-bottom: 1px solid ${borderCol};">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="left" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; color: ${textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
-                    ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-                  </td>
-                  <td align="right" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; color: ${crimson}; text-transform: uppercase; letter-spacing: 0.5px;">
-                    Dispatched by ${escapeHtml(senderName)}
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- MAIN EDITORIAL CONTENT -->
-          <tr>
-            <td style="padding: 32px 32px 24px 32px; background-color: ${bgPaper};" class="body-content">
-              <!-- Content injected from rich text editor -->
-              <div style="font-family: Georgia, 'Times New Roman', Times, serif; font-size: 16px; line-height: 1.65; color: #27272a;">
-                ${cleanBody}
-              </div>
-            </td>
-          </tr>
-
-          <!-- OPTIONAL FEATURED ARTICLE SECTION -->
-          ${renderFeaturedArticleHtml(featured, crimson, bgCard, borderCol, ink, textMuted)}
-
-          <!-- EDITORIAL FOOTER -->
-          <tr>
-            <td style="padding: 28px 32px; background-color: ${bgCard}; border-top: 2px solid ${ink};">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <!-- Branding -->
-                <tr>
-                  <td align="center" style="padding-bottom: 16px;">
-                    <p style="margin: 0; font-family: Georgia, 'Times New Roman', Times, serif; font-size: 18px; font-weight: bold; text-transform: uppercase; color: ${ink};">
-                      ${escapeHtml(footer?.brandName || "The Executive Brief")}
-                    </p>
-                    <p style="margin: 4px 0 0 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; color: ${textMuted};">
-                      ${escapeHtml(footer?.departmentName || "Department of Business Management, Osmania University, Hyderabad – 500007, India")}
-                    </p>
-                    <p style="margin: 8px 0 0 0; font-family: Georgia, 'Times New Roman', Times, serif; font-size: 13px; font-style: italic; color: ${textLight}; max-width: 480px; line-height: 1.4;">
-                      ${escapeHtml(footer?.description || "Published under the aegis of the Newsletter & Media Club of OU DBM. Curated corporate and executive scholarship.")}
-                    </p>
-                  </td>
-                </tr>
-
-                <!-- Links & Inquiries -->
-                <tr>
-                  <td align="center" style="padding: 12px 0; border-top: 1px solid ${borderCol}; border-bottom: 1px solid ${borderCol};">
-                    <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; color: ${textMuted};">
-                      <a href="${escapeHtml(footer?.websiteUrl || "https://teboudbm.vercel.app")}" style="color: ${crimson}; text-decoration: none; font-weight: 600; margin: 0 8px;">Website</a>
-                      &bull;
-                      <a href="mailto:${escapeHtml(footer?.contactEmail || "executivebrief@oudbm.ac.in")}" style="color: ${crimson}; text-decoration: none; font-weight: 600; margin: 0 8px;">Contact Editorial</a>
-                    </p>
-                  </td>
-                </tr>
-
-                <!-- MANDATORY PERMANENT UNSUBSCRIBE LINK -->
-                <tr>
-                  <td align="center" style="padding-top: 18px;">
-                    <p style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: ${textLight};">
-                      You are receiving this dispatch because you subscribed via The Executive Brief editorial portal.
-                    </p>
-                    <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px;">
-                      <a href="${unsubscribeUrl}" style="color: ${textMuted}; text-decoration: underline; font-weight: 600;">
-                        Unsubscribe from this newsletter
-                      </a>
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+          ${renderedBlocksHtml}
 
         </table>
       </td>
@@ -363,144 +685,77 @@ export function renderNewsletterHtml(
   </table>
 
 </body>
-</html>`;
-}
-
-function renderFeaturedArticleHtml(
-  featured: FeaturedArticleData | null | undefined,
-  crimson: string,
-  bgCard: string,
-  borderCol: string,
-  ink: string,
-  textMuted: string
-): string {
-  if (!featured || !featured.title || !featured.url) {
-    return "";
-  }
-
-  return `
-    <!-- FEATURED ARTICLE CARD -->
-    <tr>
-      <td style="padding: 0 32px 28px 32px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${bgCard}; border: 1px solid ${borderCol}; border-left: 4px solid ${crimson};">
-          ${
-            featured.imageUrl
-              ? `<tr>
-                  <td>
-                    <a href="${escapeHtml(featured.url)}" style="text-decoration: none; display: block;">
-                      <img src="${escapeHtml(featured.imageUrl)}" alt="${escapeHtml(featured.title)}" width="600" style="width: 100%; max-height: 240px; object-fit: cover; display: block; border-bottom: 1px solid ${borderCol};" />
-                    </a>
-                  </td>
-                </tr>`
-              : ""
-          }
-          <tr>
-            <td style="padding: 20px 24px;">
-              <p style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase; color: ${crimson};">
-                ${escapeHtml(featured.category || "Featured Briefing")} ${featured.readingTime ? `&bull; ${escapeHtml(featured.readingTime)}` : ""}
-              </p>
-              <h3 style="margin: 0 0 8px 0; font-family: Georgia, 'Times New Roman', Times, serif; font-size: 20px; font-weight: bold; color: ${ink}; line-height: 1.3;">
-                <a href="${escapeHtml(featured.url)}" style="color: ${ink}; text-decoration: none;">
-                  ${escapeHtml(featured.title)}
-                </a>
-              </h3>
-              ${
-                featured.description
-                  ? `<p style="margin: 0 0 16px 0; font-family: Georgia, 'Times New Roman', Times, serif; font-size: 14px; line-height: 1.5; color: ${textMuted};">
-                      ${escapeHtml(featured.description)}
-                    </p>`
-                  : ""
-              }
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="center" style="border-radius: 3px; background-color: ${crimson};">
-                    <a href="${escapeHtml(featured.url)}" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 10px 18px; display: inline-block;">
-                      ${escapeHtml(featured.buttonText || "Read Full Briefing &rarr;")}
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  `;
+</html>`.trim();
 }
 
 /**
- * Plain-text alternative generator for email clients that do not render HTML.
+ * Generates an accessible, clean plain-text version of a campaign for plain-text email clients.
  */
 export function renderNewsletterPlainText(
   campaign: Partial<NewsletterCampaign>,
   options: RenderOptions = {}
 ): string {
-  const {
-    recipientEmail = "subscriber@example.com",
-    recipientSource = "subscribers",
-    baseUrl,
-  } = options;
+  const doc = normalizeToVisualDocument(campaign);
+  const subject =
+    campaign.email_subject || "The Executive Brief — Weekly Dispatch";
 
-  const unsubscribeUrl = generateUnsubscribeUrl(
-    recipientEmail,
-    recipientSource,
-    baseUrl
-  );
+  const lines: string[] = [
+    "================================================================================",
+    "THE EXECUTIVE BRIEF",
+    "Department of Business Management, Osmania University, Hyderabad, India",
+    "================================================================================",
+    "",
+    subject.toUpperCase(),
+    "",
+  ];
 
-  const subject = campaign.email_subject || "The Executive Brief";
-  const category = campaign.category?.toUpperCase() || "WEEKLY BRIEFING";
-  const senderName = campaign.sender_name || "The Executive Brief";
-  const rawHtml = extractHtmlFromContent(campaign.editor_content);
-
-  // Strip tags to get clean plain text
-  const cleanBody = rawHtml
-    .replace(/<h1[\s\S]*?>([\s\S]*?)<\/h1>/gi, "\n\n$1\n========================\n\n")
-    .replace(/<h2[\s\S]*?>([\s\S]*?)<\/h2>/gi, "\n\n$1\n------------------------\n\n")
-    .replace(/<h3[\s\S]*?>([\s\S]*?)<\/h3>/gi, "\n\n$1\n\n")
-    .replace(/<li[\s\S]*?>([\s\S]*?)<\/li>/gi, "* $1\n")
-    .replace(/<blockquote[\s\S]*?>([\s\S]*?)<\/blockquote>/gi, '\n> "$1"\n\n')
-    .replace(/<a[\s\S]*?href=["'](.*?)["'][\s\S]*?>([\s\S]*?)<\/a>/gi, "$2 ($1)")
-    .replace(/<p[\s\S]*?>([\s\S]*?)<\/p>/gi, "$1\n\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .trim();
-
-  let text = `THE EXECUTIVE BRIEF — ${category}\n`;
-  text += `Department of Business Management, Osmania University\n`;
-  text += `Dispatched by ${senderName}\n`;
-  text += `====================================================\n\n`;
-  text += `${subject}\n\n`;
-  text += `${cleanBody}\n\n`;
-
-  if (campaign.featured_article_data?.title) {
-    const f = campaign.featured_article_data;
-    text += `----------------------------------------------------\n`;
-    text += `FEATURED BRIEFING: ${f.title}\n`;
-    if (f.description) text += `${f.description}\n`;
-    text += `Read online: ${f.url}\n`;
-    text += `----------------------------------------------------\n\n`;
+  for (const block of doc.blocks) {
+    switch (block.type) {
+      case "heading":
+        lines.push("");
+        lines.push(block.text.toUpperCase());
+        lines.push("--------------------------------------------------------------------------------");
+        break;
+      case "subheading":
+        lines.push(block.text);
+        break;
+      case "paragraph":
+        lines.push(block.text);
+        lines.push("");
+        break;
+      case "editorial_quote":
+        lines.push(`"${block.quoteText}"`);
+        if (block.attribution) {
+          lines.push(`  — ${block.attribution}${block.attributionTitle ? ` (${block.attributionTitle})` : ""}`);
+        }
+        lines.push("");
+        break;
+      case "featured_article":
+        lines.push("--------------------------------------------------------------------------------");
+        lines.push(`FEATURED STORY: ${block.title}`);
+        if (block.subtitle) lines.push(block.subtitle);
+        if (block.description) lines.push(block.description);
+        lines.push(`Read Online: ${block.articleUrl}`);
+        lines.push("--------------------------------------------------------------------------------");
+        lines.push("");
+        break;
+      case "divider":
+        lines.push("--------------------------------------------------------------------------------");
+        break;
+      case "footer":
+        lines.push("");
+        lines.push("--------------------------------------------------------------------------------");
+        lines.push(block.brandName);
+        lines.push(block.departmentName);
+        lines.push(`Website: ${block.websiteUrl}`);
+        lines.push(`Contact: ${block.contactEmail}`);
+        if (block.showUnsubscribe) {
+          lines.push("Unsubscribe: {{unsubscribe_url}}");
+        }
+        lines.push("================================================================================");
+        break;
+    }
   }
 
-  text += `====================================================\n`;
-  text += `The Executive Brief by OU DBM\n`;
-  text += `Hyderabad – 500007, Telangana, India\n`;
-  text += `Contact: executivebrief@oudbm.ac.in\n\n`;
-  text += `To unsubscribe, visit:\n${unsubscribeUrl}\n`;
-
-  return text;
-}
-
-function escapeHtml(str: string): string {
-  if (!str) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return lines.join("\n");
 }

@@ -24,7 +24,10 @@ import {
   renderNewsletterHtml,
   renderNewsletterPlainText,
 } from "./emailRenderer";
-import { getListUnsubscribeHeaders } from "./unsubscribeService";
+import {
+  getListUnsubscribeHeaders,
+  generateUnsubscribeUrl,
+} from "./unsubscribeService";
 
 /**
  * Validates and retrieves server-side SMTP configuration.
@@ -132,9 +135,15 @@ export async function sendSingleNewsletterEmail(
     return { accepted: false, error: error || "SMTP unconfigured." };
   }
 
+  const unsubscribeUrl = generateUnsubscribeUrl(
+    recipientEmail,
+    recipientSource
+  );
+
   const html = renderNewsletterHtml(campaign, {
     recipientEmail,
     recipientSource,
+    unsubscribeUrl,
   });
   const text = renderNewsletterPlainText(campaign, {
     recipientEmail,

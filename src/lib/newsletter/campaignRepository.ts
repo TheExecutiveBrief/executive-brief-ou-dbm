@@ -2,6 +2,7 @@
 // The Executive Brief by OU DBM
 // Campaign & Recipient Audit Repository
 // Manages campaigns, drafts, delivery audit snapshots, and failure tracking
+// Uses public.newsletter_campaigns as canonical Supabase PostgreSQL store
 // ==============================================================================
 
 import {
@@ -12,58 +13,28 @@ import {
   Subscriber,
 } from "./types";
 import { getActiveSubscribers } from "./subscriberRepository";
+import { renderNewsletterHtml } from "./emailRenderer";
+import {
+  isVisualDocument,
+  extractFeaturedArticleData,
+  extractFooterData,
+} from "./contentConverter";
 
-// Local in-memory store for development/testing and offline resilience
+// Local in-memory store for fallback offline resilience
 const localCampaignsStore = new Map<string, NewsletterCampaign>();
 const localRecipientsStore = new Map<string, CampaignRecipient[]>();
 
-// Seed a sample welcome draft for immediate local previewing
-const sampleCampaignId = "00000000-0000-0000-0006-000000000001";
-localCampaignsStore.set(sampleCampaignId, {
-  id: sampleCampaignId,
-  campaign_name: "The Executive Brief Inaugural Dispatch — Vol. 24",
-  email_subject: "Intelligence Briefing: Hyderabad's Corporate Corridor & Strategy Pivot",
-  preview_text: "Exclusive analysis on Deccan enterprise corridors, executive leadership, and MBA research.",
-  sender_name: "The Executive Brief",
-  reply_to_email: "executivebrief@oudbm.ac.in",
-  category: "Weekly Dispatch",
-  editor_content: `<p>Welcome to this week's curated briefing from the Department of Business Management, Osmania University.</p>
-<h2>Corporate Corridors: The Deccan Enterprise Pivot</h2>
-<p>Over the past quarter, Hyderabad's financial district has witnessed an unprecedented influx of Global Capability Centres (GCCs). In this dispatch, our research desk examines how quantitative decision architectures are reshaping executive leadership requirements across the Deccan corridor.</p>
-<blockquote>"We are no longer training administrators to oversee existing workflows; we are preparing decision architects who can stress-test algorithms and govern complex organizational transformations."</blockquote>
-<p>Explore our full analysis below, along with updates from our faculty chairs and student placement boards.</p>`,
-  rendered_html: "",
-  featured_article_data: {
-    title: "The Twin Cities Corridor: How Hyderabad's GCC Surge is Redefining Management Pedagogy",
-    url: "https://teboudbm.vercel.app/articles/twin-cities-corridor-hyderabad-gcc-boom-management-education",
-    description: "An extensive investigation into how Telangana's tech-corporate axis has reshaped recruitment at Osmania University.",
-    buttonText: "Read Full Briefing →",
-    imageUrl: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=85",
-    category: "Special Report",
-    readingTime: "8 min read",
-  },
-  footer_data: {
-    brandName: "The Executive Brief",
-    departmentName: "Department of Business Management, Osmania University, Hyderabad – 500007",
-    description: "Published under the aegis of the Newsletter & Media Club of OU DBM.",
-    websiteUrl: "https://teboudbm.vercel.app",
-    contactEmail: "executivebrief@oudbm.ac.in",
-  },
-  status: "draft",
-  recipient_count: 3,
-  sent_count: 0,
-  failed_count: 0,
-  created_by: "Editor-in-Chief",
-  created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-  updated_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-  started_at: null,
-  completed_at: null,
-});
+function getSupabaseConfig(): { url: string; serviceKey: string } | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, "");
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-function getSupabaseConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  return { url, anonKey };
+  if (!url || !serviceKey) {
+    return null;
+  }
+
+  return { url, serviceKey };
 }
 
 /**
@@ -75,21 +46,47 @@ export async function createCampaign(
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
+  // If editor_content is a visual document, automatically extract metadata if not explicitly provided
+  let featuredArticleData = campaign.featured_article_data;
+  let footerData = campaign.footer_data;
+
+  if (isVisualDocument(campaign.editor_content)) {
+    if (!featuredArticleData) {
+      featuredArticleData = extractFeaturedArticleData(campaign.editor_content);
+    }
+    if (!footerData) {
+      footerData = extractFooterData(campaign.editor_content);
+    }
+  }
+
+  // Pre-render HTML for the campaign
+  const renderedHtml =
+    campaign.rendered_html ||
+    renderNewsletterHtml({
+      ...campaign,
+      featured_article_data: featuredArticleData,
+      footer_data: footerData,
+    });
+
   const newCampaign: NewsletterCampaign = {
     ...campaign,
     id,
+    featured_article_data: featuredArticleData,
+    footer_data: footerData,
+    rendered_html: renderedHtml,
     created_at: now,
     updated_at: now,
   };
 
-  const { url, anonKey } = getSupabaseConfig();
-  if (url && anonKey) {
+  const config = getSupabaseConfig();
+  if (config) {
+    const { url, serviceKey } = config;
     try {
       const response = await fetch(`${url}/rest/v1/newsletter_campaigns`, {
         method: "POST",
         headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
           "Content-Type": "application/json",
           Prefer: "return=representation",
         },
@@ -102,9 +99,12 @@ export async function createCampaign(
           localCampaignsStore.set(rows[0].id, rows[0]);
           return rows[0];
         }
+      } else {
+        const err = await response.text();
+        console.error("Supabase createCampaign error:", response.status, err);
       }
-    } catch {
-      // Fall through to memory
+    } catch (e) {
+      console.error("createCampaign network error:", e);
     }
   }
 
@@ -123,30 +123,58 @@ export async function updateCampaign(
   if (!existing) return null;
 
   const now = new Date().toISOString();
-  const updated: NewsletterCampaign = {
+
+  // If editor_content is being updated as a visual document, extract metadata & regenerate rendered_html
+  let featuredArticleData = updates.featured_article_data ?? existing.featured_article_data;
+  let footerData = updates.footer_data ?? existing.footer_data;
+
+  const contentToInspect = updates.editor_content ?? existing.editor_content;
+  if (isVisualDocument(contentToInspect)) {
+    featuredArticleData = extractFeaturedArticleData(contentToInspect) ?? featuredArticleData;
+    footerData = extractFooterData(contentToInspect) ?? footerData;
+  }
+
+  const merged = {
     ...existing,
     ...updates,
+    featured_article_data: featuredArticleData,
+    footer_data: footerData,
     id,
     updated_at: now,
   };
 
-  const { url, anonKey } = getSupabaseConfig();
-  if (url && anonKey) {
+  // Re-render HTML automatically if content or main properties changed
+  const renderedHtml =
+    updates.rendered_html ||
+    renderNewsletterHtml(merged);
+
+  merged.rendered_html = renderedHtml;
+
+  const config = getSupabaseConfig();
+  if (config) {
+    const { url, serviceKey } = config;
     try {
+      const payload: Record<string, any> = {
+        ...updates,
+        featured_article_data: featuredArticleData,
+        footer_data: footerData,
+        rendered_html: renderedHtml,
+        updated_at: now,
+      };
+      delete payload.id;
+      delete payload.created_at;
+
       const response = await fetch(
-        `${url}/rest/v1/newsletter_campaigns?id=eq.${id}`,
+        `${url}/rest/v1/newsletter_campaigns?id=eq.${encodeURIComponent(id)}`,
         {
           method: "PATCH",
           headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`,
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
             "Content-Type": "application/json",
             Prefer: "return=representation",
           },
-          body: JSON.stringify({
-            ...updates,
-            updated_at: now,
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
@@ -156,14 +184,17 @@ export async function updateCampaign(
           localCampaignsStore.set(id, rows[0]);
           return rows[0];
         }
+      } else {
+        const err = await response.text();
+        console.error("Supabase updateCampaign error:", response.status, err);
       }
-    } catch {
-      // Fall through
+    } catch (e) {
+      console.error("updateCampaign network error:", e);
     }
   }
 
-  localCampaignsStore.set(id, updated);
-  return updated;
+  localCampaignsStore.set(id, merged);
+  return merged;
 }
 
 /**
@@ -172,15 +203,16 @@ export async function updateCampaign(
 export async function getCampaignById(
   id: string
 ): Promise<NewsletterCampaign | null> {
-  const { url, anonKey } = getSupabaseConfig();
-  if (url && anonKey) {
+  const config = getSupabaseConfig();
+  if (config) {
+    const { url, serviceKey } = config;
     try {
       const response = await fetch(
-        `${url}/rest/v1/newsletter_campaigns?id=eq.${id}&select=*&limit=1`,
+        `${url}/rest/v1/newsletter_campaigns?id=eq.${encodeURIComponent(id)}&select=*&limit=1`,
         {
           headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`,
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
             "Content-Type": "application/json",
           },
           cache: "no-store",
@@ -189,10 +221,16 @@ export async function getCampaignById(
 
       if (response.ok) {
         const rows: NewsletterCampaign[] = await response.json();
-        if (rows.length > 0) return rows[0];
+        if (rows.length > 0) {
+          localCampaignsStore.set(id, rows[0]);
+          return rows[0];
+        }
+      } else {
+        const err = await response.text();
+        console.error("Supabase getCampaignById error:", response.status, err);
       }
-    } catch {
-      // Fall through
+    } catch (e) {
+      console.error("getCampaignById network error:", e);
     }
   }
 
@@ -213,19 +251,23 @@ export async function deleteCampaign(id: string): Promise<boolean> {
     );
   }
 
-  const { url, anonKey } = getSupabaseConfig();
-  if (url && anonKey) {
+  const config = getSupabaseConfig();
+  if (config) {
+    const { url, serviceKey } = config;
     try {
-      await fetch(`${url}/rest/v1/newsletter_campaigns?id=eq.${id}`, {
-        method: "DELETE",
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
-          "Content-Type": "application/json",
-        },
-      });
-    } catch {
-      // Fall through
+      await fetch(
+        `${url}/rest/v1/newsletter_campaigns?id=eq.${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    } catch (e) {
+      console.error("deleteCampaign network error:", e);
     }
   }
 
@@ -263,22 +305,23 @@ export async function duplicateCampaign(
 }
 
 /**
- * Lists all campaigns with optional status filtering.
+ * Lists all campaigns from Supabase with optional status filtering.
  */
 export async function listCampaigns(filter?: {
   status?: CampaignStatus;
 }): Promise<NewsletterCampaign[]> {
-  const { url, anonKey } = getSupabaseConfig();
-  if (url && anonKey) {
+  const config = getSupabaseConfig();
+  if (config) {
+    const { url, serviceKey } = config;
     try {
       const query = filter?.status
-        ? `status=eq.${filter.status}&order=created_at.desc&select=*`
+        ? `status=eq.${encodeURIComponent(filter.status)}&order=created_at.desc&select=*`
         : `order=created_at.desc&select=*`;
 
       const response = await fetch(`${url}/rest/v1/newsletter_campaigns?${query}`, {
         headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
           "Content-Type": "application/json",
         },
         cache: "no-store",
@@ -286,10 +329,17 @@ export async function listCampaigns(filter?: {
 
       if (response.ok) {
         const rows: NewsletterCampaign[] = await response.json();
-        if (rows.length > 0) return rows;
+        // Update local cache
+        for (const r of rows) {
+          localCampaignsStore.set(r.id, r);
+        }
+        return rows;
+      } else {
+        const err = await response.text();
+        console.error("Supabase listCampaigns error:", response.status, err);
       }
-    } catch {
-      // Fall through
+    } catch (e) {
+      console.error("listCampaigns network error:", e);
     }
   }
 
@@ -304,7 +354,6 @@ export async function listCampaigns(filter?: {
 
 /**
  * Snapshots eligible active subscribers for a campaign before sending.
- * Guarantees idempotency: subsequent calls return existing snapshot.
  */
 export async function snapshotCampaignRecipients(
   campaignId: string
@@ -314,7 +363,6 @@ export async function snapshotCampaignRecipients(
     return existing;
   }
 
-  // Fetch active eligible recipients from central subscriber repository
   const activeSubscribers: Subscriber[] = await getActiveSubscribers();
 
   const recipients: CampaignRecipient[] = activeSubscribers.map((sub) => ({
@@ -331,27 +379,27 @@ export async function snapshotCampaignRecipients(
     created_at: new Date().toISOString(),
   }));
 
-  const { url, anonKey } = getSupabaseConfig();
-  if (url && anonKey && recipients.length > 0) {
+  const config = getSupabaseConfig();
+  if (config && recipients.length > 0) {
+    const { url, serviceKey } = config;
     try {
       await fetch(`${url}/rest/v1/newsletter_campaign_recipients`, {
         method: "POST",
         headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
           "Content-Type": "application/json",
           Prefer: "return=minimal",
         },
         body: JSON.stringify(recipients),
       });
-    } catch {
-      // Fall through
+    } catch (e) {
+      console.error("snapshotCampaignRecipients network error:", e);
     }
   }
 
   localRecipientsStore.set(campaignId, recipients);
 
-  // Update campaign recipient count
   await updateCampaign(campaignId, {
     recipient_count: recipients.length,
     status: "queued",
@@ -366,15 +414,16 @@ export async function snapshotCampaignRecipients(
 export async function getCampaignRecipients(
   campaignId: string
 ): Promise<CampaignRecipient[]> {
-  const { url, anonKey } = getSupabaseConfig();
-  if (url && anonKey) {
+  const config = getSupabaseConfig();
+  if (config) {
+    const { url, serviceKey } = config;
     try {
       const response = await fetch(
-        `${url}/rest/v1/newsletter_campaign_recipients?campaign_id=eq.${campaignId}&order=created_at.asc&select=*`,
+        `${url}/rest/v1/newsletter_campaign_recipients?campaign_id=eq.${encodeURIComponent(campaignId)}&order=created_at.asc&select=*`,
         {
           headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`,
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
             "Content-Type": "application/json",
           },
           cache: "no-store",
@@ -383,10 +432,10 @@ export async function getCampaignRecipients(
 
       if (response.ok) {
         const rows: CampaignRecipient[] = await response.json();
-        if (rows.length > 0) return rows;
+        return rows;
       }
-    } catch {
-      // Fall through
+    } catch (e) {
+      console.error("getCampaignRecipients error:", e);
     }
   }
 
@@ -414,24 +463,25 @@ export async function updateRecipientStatus(
     last_attempt_at: now,
   };
 
-  const { url, anonKey } = getSupabaseConfig();
-  if (url && anonKey) {
+  const config = getSupabaseConfig();
+  if (config) {
+    const { url, serviceKey } = config;
     try {
       await fetch(
-        `${url}/rest/v1/newsletter_campaign_recipients?id=eq.${recipientId}`,
+        `${url}/rest/v1/newsletter_campaign_recipients?id=eq.${encodeURIComponent(recipientId)}`,
         {
           method: "PATCH",
           headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`,
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
             "Content-Type": "application/json",
             Prefer: "return=minimal",
           },
           body: JSON.stringify(payload),
         }
       );
-    } catch {
-      // Fall through
+    } catch (e) {
+      console.error("updateRecipientStatus network error:", e);
     }
   }
 
@@ -467,7 +517,6 @@ export async function resetFailedRecipientsForRetry(
     });
   }
 
-  // Update campaign counts
   const updatedRecipients = await getCampaignRecipients(campaignId);
   const acceptedCount = updatedRecipients.filter((r) => r.status === "accepted").length;
   const failedCount = updatedRecipients.filter((r) => r.status === "failed").length;
@@ -503,7 +552,7 @@ export async function getNewsletterOverviewMetrics(): Promise<{
   const lastActivity = campaigns.length > 0 ? campaigns[0].updated_at : null;
 
   return {
-    activeSubscribers: 3, // Will be merged with getSubscriberMetrics() in API
+    activeSubscribers: 3,
     totalSubscribers: 3,
     totalCampaigns: campaigns.length,
     draftCampaigns,
