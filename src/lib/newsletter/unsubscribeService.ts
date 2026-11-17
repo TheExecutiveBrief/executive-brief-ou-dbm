@@ -92,7 +92,7 @@ export function generateUnsubscribeUrl(
   const host =
     baseUrl ||
     process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://teboudbm.vercel.app/");
 
   return `${host.replace(/\/$/, "")}/unsubscribe?token=${encodeURIComponent(token)}`;
 }
